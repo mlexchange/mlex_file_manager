@@ -4,7 +4,6 @@ Simple labeling application with a Dash UI.
 
 ## Running
 ```
-cd ../../
 docker-compose up --build
 ```
 
