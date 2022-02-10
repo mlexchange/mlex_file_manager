@@ -34,12 +34,12 @@ def move_dir(source, destination):
 def add_filenames_from_dir(dir_path, supported_formats, list_filename):
     '''
     Args:
-        dir_path, str:                 full path of a directory
-        supported_formats, list:   supported formats, e.g., ['tiff', 'tif', 'jpg', 'jpeg', 'png']
-        list_filename, [str]:          list of file paths (full path, str)
+        dir_path, str:            full path of a directory
+        supported_formats, list:  supported formats, e.g., ['tiff', 'tif', 'jpg', 'jpeg', 'png']
+        list_filename, [str]:     list of file paths (full path, str)
     
     Returns:
-        list_filename, [str]
+        Adding unique file paths to list_filename, [str]
     '''
     hidden_formats = ['DS_Store']
     root_path, list_dirs, filenames = next(os.walk(dir_path))
@@ -47,7 +47,8 @@ def add_filenames_from_dir(dir_path, supported_formats, list_filename):
         exts = filename.split('.')
         if exts[-1] in supported_formats and exts[-1] not in hidden_formats and exts[-2] != '':
             filename = root_path + '/' + filename
-            list_filename.append(filename)
+            if filename not in list_filename:
+                list_filename.append(filename)
             
     for dirname in list_dirs:
         new_dir_path = dir_path + '/' + dirname
@@ -58,7 +59,7 @@ def add_filenames_from_dir(dir_path, supported_formats, list_filename):
 
 def filename_list(directory, format):
     '''
-    Return a list of absolute file path (filtered by file formats) in a directory. 
+    Return a full list of absolute file path (filtered by file formats) inside a directory. 
     '''
     hidden_formats = ['DS_Store']
     files = []
@@ -81,4 +82,13 @@ def filename_list(directory, format):
                             files.append({'file_path': str(filepath.absolute()), 'file_type': 'file'})
     
     return files
+
+
+def check_duplicate_filename(dir_path, filename):
+    root_path, list_dirs, filenames = next(os.walk(dir_path))
+    if filename in filenames:
+        return True
+    else:
+        return False
+
 
