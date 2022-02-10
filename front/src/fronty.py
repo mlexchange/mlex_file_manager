@@ -66,20 +66,6 @@ data_access = html.Div([
     dbc.Card([
         dbc.CardBody(id='data-body',
                       children=[
-                          dbc.Label('Upload new file(s) to browser cache:', className='mr-2'),
-                          dcc.Upload(id='upload-image',
-                                     children=html.Div(['Drag and Drop or ',
-                                                        html.A('Select Files')]),
-                                     style={'width': '97%',
-                                            'height': '60px',
-                                            'lineHeight': '60px',
-                                            'borderWidth': '1px',
-                                            'borderStyle': 'dashed',
-                                            'borderRadius': '5px',
-                                            'textAlign': 'center',
-                                            'margin': '10px',
-                                            'margin-bottom': '30px'},
-                                     multiple=True),
                           dbc.Label('Or upload a new file or folder (zip) to work dir:', className='mr-2'),
                           html.Div([html.Div([ du.Upload(
                                                     id="dash-uploader",
