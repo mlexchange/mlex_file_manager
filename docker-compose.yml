@@ -12,4 +12,4 @@ services:
             - "${PWD}/data:/app/work/data"
             - "./front/src:/app/work/src"
         ports:
-            - '8059:8059'
+            - '8060:8060'

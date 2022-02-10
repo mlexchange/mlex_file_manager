@@ -14,7 +14,8 @@ import plotly.express as px
 
 import templates
 from helper_utils import draw_rows
-from file_manager import filename_list, move_a_file, move_dir, add_filenames_from_dir
+from file_manager import filename_list, move_a_file, move_dir, \
+                         add_filenames_from_dir, check_duplicate_filename
 
 
 external_stylesheets = [dbc.themes.BOOTSTRAP]
@@ -239,9 +240,6 @@ browser_cache =html.Div(
         id="no-display",
         children=[
             dcc.Store(id='file-paths', data=[]),
-            dcc.Store(id='image-cache-filename', data=[]),
-            dcc.Store(id='image-cache-content', data=[]),
-            dcc.Store(id='image-cache-date', data=[]),
             dcc.Store(id='current-page', data=0),
             dcc.Store(id='image-order', data=[]),
         ],
@@ -346,34 +344,9 @@ def file_manager(browse_format, browse_n_clicks, import_n_clicks, delete_n_click
     return files, selected_files
 
 
-@app.callback([
-    Output('image-cache-filename', 'data'),
-    Output('image-cache-content', 'data'),
-    Output('image-cache-date', 'data'),
-    Input('upload-image', 'contents'),
-    State('upload-image', 'filename'),
-    State('upload-image', 'last_modified'),
-], prevent_initial_call=True)
-def upload_image_to_cache(list_of_contents, list_of_names, list_of_dates):
-    """
-    This callback takes images from the drag and drop and uploads them to local browser cache
-    Args:
-        list_of_contents, list: list of byte strings corresponding to images
-        list_of_names: list:    list of strings, filenames of images
-        list_of_dates, list:    list of dates with file creation
-    Returns:
-        same information stored in cache
-    """
-    if list_of_names is not None:
-        return list_of_names, list_of_contents, list_of_dates
-    else:
-        return [dash.no_update, dash.no_update, dash.no_update]
-
-
 @app.callback(
     Output('image-order','data'),
     Input('file-paths','data'),
-    Input('image-cache-filename', 'data'),
     Input('import-dir', 'n_clicks'),
     Input('import-format', 'value'),
     Input('files-table', 'selected_rows'),
@@ -381,20 +354,18 @@ def upload_image_to_cache(list_of_contents, list_of_names, list_of_dates):
     Input('move-dir', 'n_clicks'),
     State('image-order','data'),
     prevent_initial_call=True)
-def display_index(file_paths, list_filenames_cache, import_n_clicks, import_format, rows, \
+def display_index(file_paths, import_n_clicks, import_format, rows,
                   delete_n_clicks, move_dir_n_clicks, image_order):
     '''
     This callback arranges the image order according to the following actions:
         - New content is uploaded
         - Buttons sort or hidden are selected
     Args:
-        file_paths :            Absolute file paths selected from path table  
-        list_filenames_cache:   Filenames of the images saved in cache (data access: upload option)
+        file_paths :            Absolute file paths selected from path table
         import_n_clicks:        Button for importing selected paths
         import_format:          File format for import
         rows:                   Rows of the selected file paths from path table
         delete_n_clicks:        Button for deleting selected file paths
-        move_dir_n_clicks:      Button for moving selected files into new dir
         image_order:            Order of the images according to the selected action (sort, hide, new data, etc)
 
     Returns:
@@ -417,17 +388,16 @@ def display_index(file_paths, list_filenames_cache, import_n_clicks, import_form
                 list_filename = add_filenames_from_dir(file_path['file_path'], supported_formats, list_filename)
             else:
                 list_filename.append(file_path['file_path'])
-    else:
-        list_filename = list_filenames_cache
     
-    num_imgs = len(list_filename)
-    if  changed_id == 'image-cache-filename.data' or \
-        changed_id == 'import-dir.n_clicks' or \
-        changed_id == 'confirm-delete.n_clicks' or \
-        changed_id == 'files-table.selected_rows' or \
-        changed_id == 'move_dir_n_clicks':
-        image_order = list(range(num_imgs))
+        num_imgs = len(list_filename)
+        if  changed_id == 'import-dir.n_clicks' or \
+            changed_id == 'confirm-delete.n_clicks' or \
+            changed_id == 'files-table.selected_rows' or \
+            changed_id == 'move_dir_n_clicks':
+            image_order = list(range(num_imgs))
 
+    else:
+        image_order = []
 
     return image_order
 
@@ -444,15 +414,12 @@ def display_index(file_paths, list_filenames_cache, import_n_clicks, import_form
     Input('files-table', 'selected_rows'),
     Input('import-format', 'value'),
     Input('file-paths','data'),
-    
-    State('image-cache-content', 'data'),
-    State('image-cache-filename', 'data'),
-    State('image-cache-date', 'data'),
+
     State('current-page', 'data'),
     State('import-dir', 'n_clicks')],
     prevent_initial_call=True)
-def update_output(image_order, button_prev_page, button_next_page, rows, import_format, file_paths,
-                  list_contents_cache, list_filenames_cache, list_dates_cache, current_page, import_n_clicks):
+def update_output(image_order, button_prev_page, button_next_page, rows, import_format,
+                  file_paths, current_page, import_n_clicks):
     '''
     This callback displays images in the front-end
     Args:
@@ -462,9 +429,6 @@ def update_output(image_order, button_prev_page, button_next_page, rows, import_
         rows:                   Rows of the selected file paths from path table
         import_format:          File format for import
         file_paths:             Absolute file paths selected from path table
-        list_contents_cache:    Contents of the images saved in cache (data access: upload option)
-        list_filenames_cache:   Filenames of the images saved in cache (data access: upload option)
-        list_dates_cache:       Dates of the images saved in cache (data access: upload option)
         current_page:           Index of the current page
         import_n_clicks:        Button for importing the selected paths
     Returns:
@@ -489,7 +453,9 @@ def update_output(image_order, button_prev_page, button_next_page, rows, import_
         current_page = current_page - 1
     if changed_id == 'next-page.n_clicks':
         current_page = current_page + 1
-    
+
+    children = []
+    num_imgs = 0
     if import_n_clicks and bool(rows):
         list_filename = []
         for file_path in file_paths:
@@ -497,20 +463,14 @@ def update_output(image_order, button_prev_page, button_next_page, rows, import_
                 list_filename = add_filenames_from_dir(file_path['file_path'], supported_formats, list_filename)
             else:
                 list_filename.append(file_path['file_path'])
-    else:
-        list_filename = list_filenames_cache
     
-    # plot images according to current page index and number of columns
-    num_imgs = len(list_filename)
-    if num_imgs>0:
-        start_indx = NUMBER_OF_ROWS * NUMBER_IMAGES_PER_ROW * current_page
-        max_indx = start_indx + NUMBER_OF_ROWS * NUMBER_IMAGES_PER_ROW
-        if max_indx > num_imgs:
-            max_indx = num_imgs
-        new_contents = []
-        new_filenames = []
-        new_dates = []
-        if import_n_clicks>0 and bool(rows):
+        # plot images according to current page index and number of columns
+        num_imgs = len(image_order)
+        if num_imgs>0:
+            start_indx = NUMBER_OF_ROWS * NUMBER_IMAGES_PER_ROW * current_page
+            max_indx = min(start_indx + NUMBER_OF_ROWS * NUMBER_IMAGES_PER_ROW, num_imgs)
+            new_contents = []
+            new_filenames = []
             for i in range(start_indx, max_indx):
                 filename = list_filename[image_order[i]]
                 with open(filename, "rb") as file:
@@ -518,22 +478,16 @@ def update_output(image_order, button_prev_page, button_next_page, rows, import_
                     file_ext = filename[filename.find('.')+1:]
                     new_contents.append('data:image/'+file_ext+';base64,'+img.decode("utf-8"))
                 new_filenames.append(list_filename[image_order[i]])
-                new_dates.append(os.path.getmtime(filename))
-        else:
-            for i in range(start_indx, max_indx):
-                new_contents.append(list_contents_cache[image_order[i]])
-                new_filenames.append(list_filenames_cache[image_order[i]])
-                new_dates.append(list_dates_cache[image_order[i]])
-        children = draw_rows(new_contents, new_filenames, new_dates, NUMBER_IMAGES_PER_ROW, NUMBER_OF_ROWS)
-    else:
-        children = []
+            children = draw_rows(new_contents, new_filenames, NUMBER_IMAGES_PER_ROW, NUMBER_OF_ROWS)
+
     return children, current_page==0, math.ceil((num_imgs//NUMBER_IMAGES_PER_ROW)/NUMBER_OF_ROWS)<=current_page+1, \
            current_page
 
 
 
+
 if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0', port=8059)
+    app.run_server(debug=True, host='0.0.0.0', port=8060)
 
 
 
