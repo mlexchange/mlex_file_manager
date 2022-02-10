@@ -220,29 +220,6 @@ file_explorer = html.Div(
 )
 
 
-modal_delete = html.Div(
-    [
-        dbc.Button("Open modal", id="open", n_clicks=0),
-        dbc.Modal(
-            [
-                dbc.ModalHeader(dbc.ModalTitle("Header")),
-                dbc.ModalBody("Files cannot be recovered after deletion. Do you still want to proceed?"),
-                dbc.ModalFooter([
-                    dbc.Button(
-                        "Delete", id="confirm-delete", className="ms-auto", n_clicks=0
-                    ),
-                    dbc.Button(
-                        "Close", id="close", className="ms-auto", n_clicks=0
-                    )
-                ]),
-            ],
-            id="modal",
-            is_open=False,
-        ),
-    ]
-)
-
-
 # DISPLAY DATASET
 display = html.Div(
     [
