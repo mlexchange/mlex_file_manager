@@ -1,5 +1,5 @@
 import os
-import io, shutil, pathlib, base64, math
+import io, shutil, pathlib, base64, math, zipfile
 
 import dash
 from dash import dcc, html, dash_table
@@ -66,7 +66,7 @@ data_access = html.Div([
     dbc.Card([
         dbc.CardBody(id='data-body',
                       children=[
-                          dbc.Label('Or upload a new file or folder (zip) to work dir:', className='mr-2'),
+                          dbc.Label('Upload a new file or folder (zip) to work dir:', className='mr-2'),
                           html.Div([html.Div([ du.Upload(
                                                     id="dash-uploader",
                                                     max_file_size=1800,  # 1800 Mb
@@ -104,7 +104,7 @@ data_access = html.Div([
                                     ],
                             style = {'width': '100%', 'display': 'flex', 'align-items': 'center'}
                           ),
-                          dbc.Label('Or choose files/directories:', className='mr-2'),
+                          dbc.Label('Choose files/directories:', className='mr-2'),
                           html.Div(
                                   [dbc.Button("Browse",
                                              id="browse-dir",
@@ -228,6 +228,7 @@ browser_cache =html.Div(
             dcc.Store(id='file-paths', data=[]),
             dcc.Store(id='current-page', data=0),
             dcc.Store(id='image-order', data=[]),
+            dcc.Store(id='dummy-data', data=0)
         ],
     )
 
@@ -271,6 +272,31 @@ def toggle_modal(n1, n2, is_open):
     if n1 or n2:
         return not is_open
     return is_open
+
+
+
+@app.callback(
+    Output('dummy-data', 'data'),
+    [Input('dash-uploader', 'isCompleted')],
+    [State('dash-uploader', 'fileNames'),
+     State('dash-uploader', 'upload_id')],
+)
+def upload_zip(iscompleted, upload_filename, upload_id):
+    if not iscompleted:
+        return 0
+
+    if upload_filename is not None:
+        extension = upload_filename[0].split('.')[-1]
+        foldername  = upload_filename[0].split('.')[-2]
+        if extension == 'zip':
+            # unzip files and delete zip file
+            path_to_zip_file = pathlib.Path(UPLOAD_FOLDER_ROOT) / upload_filename[0]
+            zip_ref = zipfile.ZipFile(path_to_zip_file)  # create zipfile object
+            zip_ref.extractall(pathlib.Path(UPLOAD_FOLDER_ROOT))  # extract file to dir
+            zip_ref.close()  # close file
+            os.remove(path_to_zip_file)
+
+    return 0 
 
 
 @app.callback(
