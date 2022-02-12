@@ -31,30 +31,30 @@ def move_dir(source, destination):
         move_dir(dir_source, destination)
 
 
-def add_filenames_from_dir(dir_path, supported_formats, list_filename):
+def add_paths_from_dir(dir_path, supported_formats, list_file_path):
     '''
     Args:
         dir_path, str:            full path of a directory
         supported_formats, list:  supported formats, e.g., ['tiff', 'tif', 'jpg', 'jpeg', 'png']
-        list_filename, [str]:     list of file paths (full path, str)
+        list_file_path, [str]:     list of absolute file paths
     
     Returns:
-        Adding unique file paths to list_filename, [str]
+        Adding unique file paths to list_file_path, [str]
     '''
     hidden_formats = ['DS_Store']
     root_path, list_dirs, filenames = next(os.walk(dir_path))
     for filename in filenames:
         exts = filename.split('.')
         if exts[-1] in supported_formats and exts[-1] not in hidden_formats and exts[-2] != '':
-            filename = root_path + '/' + filename
-            if filename not in list_filename:
-                list_filename.append(filename)
+            file_path = root_path + '/' + filename
+            if file_path not in list_file_path:
+                list_file_path.append(file_path)
             
     for dirname in list_dirs:
         new_dir_path = dir_path + '/' + dirname
-        list_filename = add_filenames_from_dir(new_dir_path, supported_formats, list_filename)
+        list_file_path = add_paths_from_dir(new_dir_path, supported_formats, list_file_path)
     
-    return list_filename
+    return list_file_path
 
 
 def filename_list(directory, format):
