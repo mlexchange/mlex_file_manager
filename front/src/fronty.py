@@ -4,6 +4,7 @@ import io, shutil, pathlib, base64, math, zipfile
 import dash
 from dash import dcc, html, dash_table
 import dash_bootstrap_components as dbc
+import dash_daq as daq
 import dash_uploader as du
 from dash.dependencies import Input, Output, State, MATCH, ALL
 
@@ -14,7 +15,7 @@ import plotly.express as px
 
 import templates
 from helper_utils import draw_rows
-from file_manager import filename_list, move_a_file, move_dir, \
+from file_manager import filename_list, move_a_file, move_dir, docker_to_local_path, \
                          add_paths_from_dir, check_duplicate_filename
 
 
@@ -29,9 +30,12 @@ header = templates.header()
 NUMBER_OF_ROWS = 4
 NUMBER_IMAGES_PER_ROW = 4
 
-HOME_DATA = pathlib.Path.home() / 'data'
+DOCKER_DATA = pathlib.Path.home() / 'data'
+LOCAL_DATA = str(os.environ['DATA_DIR'])
+DOCKER_HOME = str(DOCKER_DATA) + '/'
+LOCAL_HOME = str(LOCAL_DATA) 
 
-UPLOAD_FOLDER_ROOT = HOME_DATA / 'upload'
+UPLOAD_FOLDER_ROOT = DOCKER_DATA / 'upload'
 du.configure_upload(app, UPLOAD_FOLDER_ROOT, use_upload_id=False)
 
 
@@ -84,9 +88,9 @@ data_access = html.Div([
                                             dbc.Label("Dataset is by default uploaded to '{}'. \
                                                        You can move the selected files or dirs (from File Table) \
                                                        into a new dir.".format(UPLOAD_FOLDER_ROOT), className='mr-5'),
-                                            dbc.Label("Home data dir (HOME) is '{}'.".format(HOME_DATA), className='mr-5'),
+                                            dbc.Label("Home data dir (HOME) is '{}'.".format(DOCKER_DATA), className='mr-5'),
                                             html.Div([
-                                                dbc.Label('Move data into dir:'.format(HOME_DATA), className='mr-5'),
+                                                dbc.Label('Move data into dir:'.format(DOCKER_DATA), className='mr-5'),
                                                 dcc.Input(id='dest-dir-name', placeholder="Input relative path to HOME", 
                                                                 style={'width': '40%', 'margin-bottom': '10px'}),
                                                 dbc.Button("Move",
@@ -178,6 +182,13 @@ data_access = html.Div([
                                  ],
                                 style = {'width': '100%', 'display': 'flex', 'align-items': 'center'},
                                 ),
+                        html.Div([ html.Div([dbc.Label('Show Local/Docker Path')], style = {'margin-right': '10px'}),
+                                    daq.ToggleSwitch(
+                                        id='my-toggle-switch',
+                                        value=False
+                                    )],
+                            style = {'width': '100%', 'display': 'flex', 'align-items': 'center', 'margin': '10px', 'margin-left': '0px'},
+                        ),
                         file_paths_table,
                         ]),
     ],
@@ -311,14 +322,15 @@ def upload_zip(iscompleted, upload_filename, upload_id):
     Input('move-dir', 'n_clicks'),
     Input('files-table', 'selected_rows'),
     Input('file-paths', 'data'),
+    Input('my-toggle-switch', 'value'),
     State('dest-dir-name', 'value')
 )
-def file_manager(browse_format, browse_n_clicks, import_n_clicks, delete_n_clicks, \
-                  move_dir_n_clicks, rows, selected_paths, dest):
+def file_manager(browse_format, browse_n_clicks, import_n_clicks, delete_n_clicks, 
+                  move_dir_n_clicks, rows, selected_paths, docker_path, dest):
     changed_id = dash.callback_context.triggered[0]['prop_id']
     files = []
     if browse_n_clicks or import_n_clicks:
-        files = filename_list(HOME_DATA, browse_format)
+        files = filename_list(DOCKER_DATA, browse_format)
         
     selected_files = []
     if bool(rows):
@@ -332,30 +344,29 @@ def file_manager(browse_format, browse_n_clicks, import_n_clicks, delete_n_click
             else:
                 os.remove(filepath['file_path'])
         selected_files = []
-        files = filename_list(HOME_DATA, browse_format)
+        files = filename_list(DOCKER_DATA, browse_format)
     
     if browse_n_clicks and changed_id == 'move-dir.n_clicks':
         if dest is None:
             dest = ''
-            
-        destination = HOME_DATA / dest
+        destination = DOCKER_DATA / dest
         destination.mkdir(parents=True, exist_ok=True)
         if bool(rows):
             sources = selected_paths
-        else:
-            sources = [{'file_path': str(UPLOAD_FOLDER_ROOT)}]
-    
-        for source in sources:
-            if os.path.isdir(source['file_path']):
-                move_dir(source['file_path'], str(destination))
-                shutil.rmtree(source['file_path'])
-            else:
-                move_a_file(source['file_path'], str(destination))
+            for source in sources:
+                if os.path.isdir(source['file_path']):
+                    move_dir(source['file_path'], str(destination))
+                    shutil.rmtree(source['file_path'])
+                else:
+                    move_a_file(source['file_path'], str(destination))
                 
-        selected_files = []
-        files = filename_list(HOME_DATA, browse_format)
+            selected_files = []
+            files = filename_list(DOCKER_DATA, browse_format)
 
-    return files, selected_files
+    if docker_path:
+        return files, selected_files
+    else:
+        return docker_to_local_path(files, DOCKER_HOME, LOCAL_HOME), selected_files
 
 
 @app.callback(
@@ -428,12 +439,13 @@ def display_index(file_paths, import_n_clicks, import_format, rows,
     Input('files-table', 'selected_rows'),
     Input('import-format', 'value'),
     Input('file-paths','data'),
+    Input('my-toggle-switch', 'value'),
 
     State('current-page', 'data'),
     State('import-dir', 'n_clicks')],
     prevent_initial_call=True)
 def update_output(image_order, button_prev_page, button_next_page, rows, import_format,
-                  file_paths, current_page, import_n_clicks):
+                  file_paths, docker_path, current_page, import_n_clicks):
     '''
     This callback displays images in the front-end
     Args:
@@ -443,6 +455,7 @@ def update_output(image_order, button_prev_page, button_next_page, rows, import_
         rows:                   Rows of the selected file paths from path table
         import_format:          File format for import
         file_paths:             Absolute file paths selected from path table
+        docker_path:            Showing file path in Docker environment
         current_page:           Index of the current page
         import_n_clicks:        Button for importing the selected paths
     Returns:
@@ -481,8 +494,8 @@ def update_output(image_order, button_prev_page, button_next_page, rows, import_
         # plot images according to current page index and number of columns
         num_imgs = len(image_order)
         if num_imgs>0:
-            start_indx = NUMBER_OF_ROWS * NUMBER_IMAGES_PER_ROW * current_page
-            max_indx = min(start_indx + NUMBER_OF_ROWS * NUMBER_IMAGES_PER_ROW, num_imgs)
+            start_indx = NUMBER_OF_ROWS * thumbnail_slider_value * current_page
+            max_indx = min(start_indx + NUMBER_OF_ROWS * thumbnail_slider_value, num_imgs)
             new_contents = []
             new_filenames = []
             for i in range(start_indx, max_indx):
@@ -491,8 +504,12 @@ def update_output(image_order, button_prev_page, button_next_page, rows, import_
                     img = base64.b64encode(file.read())
                     file_ext = filename[filename.find('.')+1:]
                     new_contents.append('data:image/'+file_ext+';base64,'+img.decode("utf-8"))
-                new_filenames.append(list_filename[image_order[i]])
-            children = draw_rows(new_contents, new_filenames, NUMBER_IMAGES_PER_ROW, NUMBER_OF_ROWS)
+                if docker_path:
+                    new_filenames.append(list_filename[image_order[i]])
+                else:
+                    new_filenames.append(docker_to_local_path(list_filename[image_order[i]], DOCKER_HOME, LOCAL_HOME, 'str'))
+                
+            children = draw_rows(new_contents, new_filenames, thumbnail_slider_value, NUMBER_OF_ROWS)
 
     return children, current_page==0, math.ceil((num_imgs//NUMBER_IMAGES_PER_ROW)/NUMBER_OF_ROWS)<=current_page+1, \
            current_page
