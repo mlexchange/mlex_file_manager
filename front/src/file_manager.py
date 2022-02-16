@@ -1,5 +1,6 @@
 import os 
 import pathlib
+import copy
 
 def move_a_file(source, destination):
     '''
@@ -59,7 +60,11 @@ def add_paths_from_dir(dir_path, supported_formats, list_file_path):
 
 def filename_list(directory, format):
     '''
-    Return a full list of absolute file path (filtered by file formats) inside a directory. 
+    Args:
+        directory, str:     full path of a directory
+        format, list(str):  list of supported formats
+    Return:
+        a full list of absolute file path (filtered by file formats) inside a directory. 
     '''
     hidden_formats = ['DS_Store']
     files = []
@@ -90,5 +95,62 @@ def check_duplicate_filename(dir_path, filename):
         return True
     else:
         return False
+
+
+def docker_to_local_path(paths, docker_home, local_home, type='list-dict'):
+    '''
+    Args:
+        paths:              docker file paths
+        docker_home, str:   full path of home dir (ends with '/') in docker environment
+        local_home, str:    full path of home dir (ends with '/') mounted in local machine
+        type:
+            list-dict, default:  a list of dictionary (docker paths), e.g., [{'file_path': 'docker_path1'},{...}]
+            str:                a single file path string
+    Return: 
+        replace docker path with local path.
+    '''
+    if type == 'list-dict':
+        files = copy.deepcopy(paths)
+        for file in files:
+            if not file['file_path'].startswith(local_home):
+                file['file_path'] = local_home + file['file_path'].split(docker_home)[-1]
+    
+    if type == 'str':
+        if not paths.startswith(local_home):
+            files = local_home + paths.split(docker_home)[-1]
+        else:
+            files = paths
+        
+    return files
+
+
+def local_to_docker_path(paths, docker_home, local_home, type='list'):
+    '''
+    Args:
+        paths:             selected local (full) paths 
+        docker_home, str:  full path of home dir (ends with '/') in docker environment
+        local_home, str:   full path of home dir (ends with '/') mounted in local machine
+        type:
+            list:          a list of path string
+            str:           single path string 
+    Return: 
+        replace local path with docker path
+    '''
+    if type == 'list':
+        files = []
+        for i in range(len(paths)):
+            if not paths[i].startswith(docker_home):
+                files.append(docker_home + paths[i].split(local_home)[-1])
+            else:
+                files.append(paths[i])
+    
+    if type == 'str':
+        if not paths.startswith(docker_home):
+            files = docker_home + paths.split(local_home)[-1]
+        else:
+            files = paths
+
+    return files
+
 
 
