@@ -46,7 +46,7 @@ def add_paths_from_dir(dir_path, supported_formats, list_file_path):
     root_path, list_dirs, filenames = next(os.walk(dir_path))
     for filename in filenames:
         exts = filename.split('.')
-        if exts[-1] in supported_formats and exts[-1] not in hidden_formats and exts[-2] != '':
+        if exts[-1] in supported_formats and exts[-1] not in hidden_formats and exts[0] != '':
             file_path = root_path + '/' + filename
             if file_path not in list_file_path:
                 list_file_path.append(file_path)
