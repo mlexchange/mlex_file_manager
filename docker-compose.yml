@@ -8,8 +8,10 @@ services:
             context: 'front/'
             dockerfile: 'docker/Dockerfile'
         command: 'python src/fronty.py'
+        environment:
+            DATA_DIR: "${PWD}/data/"
         volumes:
-            - "${PWD}/data:/app/work/data"
+            - "./data:/app/work/data"
             - "./front/src:/app/work/src"
         ports:
             - '8060:8060'

@@ -31,7 +31,6 @@ def header():
                                 html.Div(
                                     [
                                         html.H3("MLExchange | File Manager"),
-                                        html.P("Scattering Data"),
                                     ],
                                     id="app-title",
                                 )
