@@ -83,7 +83,7 @@ def filename_list(directory, format):
                     else:
                         filename = str(filepath).split('/')[-1]
                         exts = filename.split('.')
-                        if exts[-1] not in hidden_formats and exts[-2] != '':
+                        if exts[-1] not in hidden_formats and exts[0] != '':
                             files.append({'file_path': str(filepath.absolute()), 'file_type': 'file'})
     
     return files
