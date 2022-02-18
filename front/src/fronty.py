@@ -301,7 +301,7 @@ def upload_zip(iscompleted, upload_filename, upload_id):
         if upload_filename[0].split('.')[-1] == 'zip':   # unzip files and delete zip file
             zip_ref = zipfile.ZipFile(path_to_zip_file)  # create zipfile object
             path_to_folder = pathlib.Path(UPLOAD_FOLDER_ROOT) / upload_filename[0].split('.')[-2]
-            if zip_ref.namelist()[0].endswith('/'):
+            if (upload_filename[0].split('.')[-2] + '/') in zip_ref.namelist():
                 zip_ref.extractall(pathlib.Path(UPLOAD_FOLDER_ROOT))    # extract file to dir
             else:
                 zip_ref.extractall(path_to_folder)
