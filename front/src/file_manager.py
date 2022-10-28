@@ -1,6 +1,8 @@
 import os 
 import pathlib
 import copy
+import glob
+from functools import reduce
 
 def move_a_file(source, destination):
     '''
@@ -12,6 +14,7 @@ def move_a_file(source, destination):
     filename = source.split('/')[-1]
     new_destination = destination + '/' + filename
     os.rename(source, new_destination)
+
 
 def move_dir(source, destination):
     '''
@@ -32,100 +35,76 @@ def move_dir(source, destination):
         move_dir(dir_source, destination)
 
 
-def add_paths_from_dir(dir_path, supported_formats, list_file_path, sort=False):
+def _paths_from_dir(dir_path, patterns=['**/*'], sort=False):
+    #paths = glob.glob(dir_path+'/**/*', recursive=True)
+    paths = list(reduce(lambda list1, list2: list1 + list2, (glob.glob(str(dir_path)+'/'+t, recursive=True) for t in patterns)))
+    if sort:
+        paths.sort()
+    
+    return paths
+
+
+def filenames_from_dir(dir_path, formats, sort=False):
     '''
     Args:
         dir_path, str:            full path of a directory
-        supported_formats, list:  supported formats, e.g., ['tiff', 'tif', 'jpg', 'jpeg', 'png']
-        list_file_path, [str]:    list of absolute file paths
+        formats, list:  supported formats, e.g., ['tiff', 'tif', 'jpg', 'jpeg', 'png']
         sort, boolean:            whether ordered or not, default False 
-    
     Returns:
-        Adding unique file paths to list_file_path, [str]
+        List[str]:      a list of filenames (does not contain folders) 
     '''
-    root_path, list_dirs, filenames = next(os.walk(dir_path))
-    if sort:
-        filenames.sort()
-        list_dirs.sort()
-    
-    for filename in filenames:
-        exts = filename.split('.')
-        if exts[-1] in supported_formats and exts[0] != '':
-            file_path = root_path + '/' + filename
-            if file_path not in list_file_path:
-                list_file_path.append(file_path)
-            
-    for dirname in list_dirs:
-        new_dir_path = dir_path + '/' + dirname
-        list_file_path = add_paths_from_dir(new_dir_path, supported_formats, list_file_path)
-    
-    return list_file_path
+    patterns = ['**/*.'+t for t in formats]
+    return _paths_from_dir(dir_path, patterns, sort)
 
-def filepaths_from_directory(directory, pattern='**/*', sort=False):
-    if sort:
-        return sorted(pathlib.Path(directory).glob(pattern))
-    else:
-        return pathlib.Path(directory).glob(pattern)
 
-def filename_list(directory, form, sort=False):
+def paths_from_dir(dir_path, form, sort=False):
     '''
     Args:
         directory, str:     full path of a directory
-        format, list(str):  list of supported formats
-        sort, boolean:            whether ordered or not, default False 
+        form, str:          A supported format in ['dir', '*', '*.png', '*.jpg,*jpeg', '*.tif,*tiff', '*.txt', '*.csv']
+        sort, boolean:      whether ordered or not, default False 
     Return:
-        a full list of absolute file path (filtered by file formats) inside a directory. 
+        List[dict]:         a full list of absolute file path (filtered by file formats) inside a directory.
     '''
-    hidden_formats = ['DS_Store']
-    files = []
-    if form == 'dir':
-        if os.path.exists(directory):
-            for filepath in filepaths_from_directory(directory, sort=sort):
-                if os.path.isdir(filepath):
-                    files.append({'file_path': str(filepath.absolute()), 'file_type': 'dir'})
+    paths = []
+    if form == 'dir' or form == '*':
+        directories = _paths_from_dir(dir_path,['**/'], sort) # include the root dir path
+        for directory in directories[1:]:      # exclude the root dir path
+            paths.append({'file_path': directory[:-1], 'file_type': 'dir'})
+        if form == '*':
+            patterns = ['**/*.png', '**/*.jpg', '**/*jpeg', '**/*.tif', '**/*tiff', '**/*.txt', '**/*.csv']
+            fnames = _paths_from_dir(dir_path, patterns, sort)
+            for fname in fnames:
+                paths.append({'file_path': fname, 'file_type': 'file'})
     else:
-        form = form.split(',')
-        for f_ext in form:
-            if os.path.exists(directory):
-                for filepath in filepaths_from_directory(directory, pattern='**/{}'.format(f_ext), sort=sort):
-                    if os.path.isdir(filepath):
-                        files.append({'file_path': str(filepath.absolute()), 'file_type': 'dir'})
-                    else:
-                        filename = str(filepath).split('/')[-1]
-                        exts = filename.split('.')
-                        if exts[-1] not in hidden_formats and exts[0] != '':
-                            files.append({'file_path': str(filepath.absolute()), 'file_type': 'file'})
-    
-    return files
+        formats = form.split(',')
+        patterns = ['**/*.'+e[2:] for e in formats]
+        fnames = _paths_from_dir(dir_path, patterns, sort)
+        for fname in fnames:
+            paths.append({'file_path': fname, 'file_type': 'file'})
+            
+    return paths
 
 
-def check_duplicate_filename(dir_path, filename):
-    root_path, list_dirs, filenames = next(os.walk(dir_path))
-    if filename in filenames:
-        return True
-    else:
-        return False
-
-
-def docker_to_local_path(paths, docker_home, local_home, type='list-dict'):
+def docker_to_local_path(paths, docker_home, local_home, path_type='list-dict'):
     '''
     Args:
         paths:              docker file paths
         docker_home, str:   full path of home dir (ends with '/') in docker environment
         local_home, str:    full path of home dir (ends with '/') mounted in local machine
-        type:
+        path_type:
             list-dict, default:  a list of dictionary (docker paths), e.g., [{'file_path': 'docker_path1'},{...}]
             str:                a single file path string
     Return: 
-        replace docker path with local path
+        str or List[dict]:   replace docker path with local path, the same data structure as paths
     '''
-    if type == 'list-dict':
+    if path_type == 'list-dict':
         files = copy.deepcopy(paths)
         for file in files:
             if not file['file_path'].startswith(local_home):
                 file['file_path'] = local_home + file['file_path'].split(docker_home)[-1]
     
-    if type == 'str':
+    if path_type == 'str':
         if not paths.startswith(local_home):
             files = local_home + paths.split(docker_home)[-1]
         else:
@@ -134,19 +113,19 @@ def docker_to_local_path(paths, docker_home, local_home, type='list-dict'):
     return files
 
 
-def local_to_docker_path(paths, docker_home, local_home, type='list'):
+def local_to_docker_path(paths, docker_home, local_home, path_type='list'):
     '''
     Args:
         paths:             selected local (full) paths 
         docker_home, str:  full path of home dir (ends with '/') in docker environment
         local_home, str:   full path of home dir (ends with '/') mounted in local machine
-        type:
+        path_type:
             list:          a list of path string
             str:           single path string 
     Return: 
-        replace local path with docker path
+        list or str:    replace local path with docker path, the same data structure as paths
     '''
-    if type == 'list':
+    if path_type == 'list':
         files = []
         for i in range(len(paths)):
             if not paths[i].startswith(docker_home):
@@ -154,13 +133,10 @@ def local_to_docker_path(paths, docker_home, local_home, type='list'):
             else:
                 files.append(paths[i])
     
-    if type == 'str':
+    if path_type == 'str':
         if not paths.startswith(docker_home):
             files = docker_home + paths.split(local_home)[-1]
         else:
             files = paths
 
     return files
-
-
-

@@ -15,8 +15,8 @@ import plotly.express as px
 
 import templates
 from helper_utils import draw_rows
-from file_manager import filename_list, move_a_file, move_dir, docker_to_local_path, \
-                         add_paths_from_dir, check_duplicate_filename
+from file_manager import paths_from_dir, filenames_from_dir, move_a_file, move_dir, docker_to_local_path
+                         
 
 
 external_stylesheets = [dbc.themes.BOOTSTRAP]
@@ -392,7 +392,7 @@ def load_dataset(clear_data, browse_format, import_n_clicks, delete_n_clicks,
         selected_files:     List of selected filename FROM DOCKER PATH (no subdirectories)
     '''
     changed_id = dash.callback_context.triggered[0]['prop_id']
-    files = filename_list(DOCKER_DATA, browse_format, sort=True)
+    files = paths_from_dir(DOCKER_DATA, browse_format, sort=True)
         
     selected_files = []
     if bool(rows):
@@ -406,7 +406,7 @@ def load_dataset(clear_data, browse_format, import_n_clicks, delete_n_clicks,
             else:
                 os.remove(filepath['file_path'])
         selected_files = []
-        files = filename_list(DOCKER_DATA, browse_format, sort=True)
+        files = paths_from_dir(DOCKER_DATA, browse_format, sort=True)
     
     if changed_id == 'move-dir.n_clicks':
         if dest is None:
@@ -415,17 +415,15 @@ def load_dataset(clear_data, browse_format, import_n_clicks, delete_n_clicks,
         destination.mkdir(parents=True, exist_ok=True)
         if bool(rows):
             sources = selected_paths
-            print(f'sources {sources}')
             for source in sources:
                 if os.path.isdir(source['file_path']):
-                    #print(f'source {source["file_path"]}. destination {str(destination)}')
                     move_dir(source['file_path'], str(destination))
                     shutil.rmtree(source['file_path'])
                 else:
                     move_a_file(source['file_path'], str(destination))
 
             selected_files = []
-            files = filename_list(DOCKER_DATA, browse_format)
+            files = paths_from_dir(DOCKER_DATA, browse_format)
     
     if changed_id == 'clear-data.n_clicks':
         selected_files = []
@@ -482,7 +480,7 @@ def display_index(file_paths, import_n_clicks, import_format, rows,
         if bool(file_paths):
             for file_path in file_paths:
                 if file_path['file_type'] == 'dir':
-                    list_filename = add_paths_from_dir(file_path['file_path'], supported_formats, list_filename)
+                    list_filename = filenames_from_dir(file_path['file_path'], supported_formats)
                 else:
                     list_filename.append(file_path['file_path'])
         else:
@@ -498,9 +496,6 @@ def display_index(file_paths, import_n_clicks, import_format, rows,
     else:
         image_order = []
 
-    
-    print(f'file paths 0 {file_paths}')
-    print(f'image order 0 {image_order}')
     return image_order
 
 
@@ -564,7 +559,7 @@ def update_output(image_order, button_prev_page, button_next_page, rows, import_
         list_filename = []
         for file_path in file_paths:
             if file_path['file_type'] == 'dir':
-                list_filename = add_paths_from_dir(file_path['file_path'], supported_formats, list_filename)
+                list_filename = filenames_from_dir(file_path['file_path'], supported_formats)
             else:
                 list_filename.append(file_path['file_path'])
     
