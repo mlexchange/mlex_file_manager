@@ -29,7 +29,7 @@ When importing a directory, you can import **only** files of a specific format b
 4. Deleting files or directories:   
 The selected file paths can be deleted by clicking **Delete the Selected** button. User must click on **Import** button again to ingest the newly selected files/paths.
 
-Copyright
+## Copyright
 
 MLExchange Copyright (c) 2023, The Regents of the University of California, through Lawrence Berkeley National Laboratory (subject to receipt of any required approvals from the U.S. Dept. of Energy). All rights reserved.
 
