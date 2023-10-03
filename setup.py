@@ -27,7 +27,5 @@ setuptools.setup(
         'Source': 'https://github.com/taxe10/mlex_file_manager.git'
     },
     python_requires='>=3.0',                        # Minimum version requirement of the package
-    py_modules=["file_manager"],                    # Name of the python package
-    package_dir={'':'file_manager'},                # Directory of the source code of the package
     install_requires=required                       # Install other dependencies if any
 )
