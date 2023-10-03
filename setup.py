@@ -14,7 +14,7 @@ setuptools.setup(
     description="",
     long_description=long_description,              # Long description read from the the readme file
     long_description_content_type="text/markdown",
-    packages=setuptools.find_packages(include=['file_manager']),  # List of all python modules to be installed
+    packages=setuptools.find_packages(include=['file_manager', 'file_manager.*']),  # List of all python modules to be installed
     license_files = ('LICENSE.txt',),               # Information to filter the project on PyPi website
     classifiers=[
         'Environment :: Web Environment',
