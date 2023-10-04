@@ -227,14 +227,11 @@ class FileManager():
             with open(self.manager_filename, 'rb') as file:
                 data_project_dict = pickle.load(file)['data_project']
                 data_project.init_from_dict(data_project_dict)
-            row_indx = next((indx for indx, row in enumerate(files_table) if row['uri'] in 
-                             data_project_dict[0]['uri']), None)
-            return dash.no_update, [row_indx], data_project.get_dict(), dash.no_update, \
-                dash.no_update
-        if tiled_on:                    # Definition of the data type
-            data_type = 'tiled'
-        else:
-            data_type = 'file'
+            table_data, row_indx, tiled_on = self._match_table_row(data_project, files_table, 
+                                                                   tiled_on)
+            return table_data, row_indx, data_project.get_dict(), dash.no_update, \
+                tiled_on
+        data_type = 'tiled' if tiled_on else 'file'     # Definition of the data type
         try:
             browse_data = data_project.browse_data(data_type, browse_format, \
                                                    tiled_uri = tiled_uri,
@@ -284,3 +281,22 @@ class FileManager():
                     pickle.dump({'data_project': data_project.get_dict()}, file)
             data_project_dict = data_project.get_dict()
         return data_project_dict, project_id
+    
+    def _match_table_row(self, data_project, files_table, tiled_on, browse_format='*'):
+        first_uri = data_project.data[0].uri
+        row_indx = next((indx for indx, row in enumerate(files_table) if row['uri'] in first_uri), None)
+        if row_indx is None:
+            if tiled_on:
+                tiled_on = False
+                tiled_uri = None
+            else:
+                tiled_on = True
+                tiled_uri = first_uri.split('/api/v1')[0]
+            data_type = 'tiled' if tiled_on else 'file'     # Definition of the data type
+            files_table = data_project.browse_data(data_type, browse_format, \
+                                                  tiled_uri = tiled_uri,
+                                                  dir_path=self.data_folder_root,
+                                                  api_key=self.api_key,
+                                                  recursive=False)
+            row_indx = next((indx for indx, row in enumerate(files_table) if row['uri'] in first_uri), None)
+        return files_table, [row_indx], tiled_on
