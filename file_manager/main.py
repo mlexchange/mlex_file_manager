@@ -227,7 +227,9 @@ class FileManager():
             with open(self.manager_filename, 'rb') as file:
                 data_project_dict = pickle.load(file)['data_project']
                 data_project.init_from_dict(data_project_dict)
-            return dash.no_update, dash.no_update, data_project.get_dict(), dash.no_update, \
+            row_indx = next((indx for indx, row in enumerate(files_table) if row['uri'] in 
+                             data_project_dict[0]['uri']), None)
+            return dash.no_update, [row_indx], data_project.get_dict(), dash.no_update, \
                 dash.no_update
         if tiled_on:                    # Definition of the data type
             data_type = 'tiled'
