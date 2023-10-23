@@ -17,11 +17,11 @@ NOT_ALLOWED_FORMATS = ['**/__pycache__/**', '**/.*', 'cache/', 'cache/**/', 'cac
 
 
 class LocalDataset(Dataset):
-    def __init__(self, uri, type='file', tags=[], project=None, uid='1234', **kwargs):
+    def __init__(self, uri, type='file', tags=[], project=None, **kwargs): #, uid='1234', **kwargs):
         '''
         Definition of a local data set
         '''
-        super().__init__(uri, type, tags, project, uid)
+        super().__init__(uri, type, tags, project) #, uid)
         pass
 
     def read_data(self, export='base64'):
@@ -34,14 +34,14 @@ class LocalDataset(Dataset):
         filename = self.uri
         img = Image.open(filename)
         if export == 'pillow':
-            return img, self.uri, self.uid
+            return img, self.uri #, self.uid
         img = img.resize((300, 300))
         rawBytes = io.BytesIO()
         img.save(rawBytes, "JPEG")
         rawBytes.seek(0)        # return to the start of the file
         img = base64.b64encode(rawBytes.read())
         file_ext = filename[filename.find('.')+1:]
-        return 'data:image/'+file_ext+';base64,'+img.decode("utf-8"), self.uri, self.uid
+        return 'data:image/'+file_ext+';base64,'+img.decode("utf-8"), self.uri #, self.uid
     
     @staticmethod
     def filepaths_from_directory(directory, formats=FORMATS, sort=True, recursive=True):

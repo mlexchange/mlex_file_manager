@@ -1,6 +1,6 @@
 
 class Dataset:
-    def __init__(self, uri, type='file', tags=[], project=None, uid=None, **kwargs):
+    def __init__(self, uri, type='file', tags=[], project=None, **kwargs): # , uid=None
         '''
         Base class for data set schema definition
         Args:
@@ -10,7 +10,7 @@ class Dataset:
             tags:           List of tags assigned to the data set
             project_id:     Project id to track data set of interest
         '''
-        self.uid = uid
+        # self.uid = uid
         self.uri = uri
         self.type = type
         self.tags = tags

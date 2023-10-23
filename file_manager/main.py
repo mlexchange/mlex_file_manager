@@ -116,6 +116,7 @@ class FileManager():
              Output({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data'),
              Output({'base_id': 'file-manager', 'name': 'tiled-error'}, 'is_open'),
              Output({'base_id': 'file-manager', 'name': 'tiled-switch'}, 'on'),
+             Output({'base_id': 'file-manager', 'name': 'project-id'}, 'data'),
             ],
             [Input({'base_id': 'file-manager', 'name': 'browse-format'}, 'value'),
              Input({'base_id': 'file-manager', 'name': 'import-dir'}, 'n_clicks'),
@@ -131,18 +132,18 @@ class FileManager():
         )(self._load_dataset)
         pass
 
-        app.long_callback(
-            Output({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data', 
-                   allow_duplicate=True),
-            Output({'base_id': 'file-manager', 'name': 'project-id'}, 'data'),
-            Input({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data'),
-            cancel=[
-                Input({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data')
-                ],
-            interval=100,
-            prevent_initial_call=True
-        )(self._update_project_id)
-        pass
+        # app.long_callback(
+        #     Output({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data', 
+        #            allow_duplicate=True), 
+        #     Output({'base_id': 'file-manager', 'name': 'project-id'}, 'data'),
+        #     Input({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data'),
+        #     cancel=[
+        #         Input({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data')
+        #         ],
+        #     interval=100,
+        #     prevent_initial_call=True
+        # )(self._update_project_id)
+        # pass
 
     @staticmethod
     def _toggle_collapse(collapse_n_clicks, import_n_clicks, refresh_n_clicks, is_open):
@@ -214,23 +215,27 @@ class FileManager():
         start = time.time()
         changed_id = dash.callback_context.triggered[0]['prop_id']
         data_project = DataProject(data=[])
+        project = dash.no_update
         # prevent update according to update_data flag
         if 'import-dir' in changed_id and not update_data:
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-        elif changed_id in ['{"base_id":"file-manager","name":"clear-data"}.n_clicks', \
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, \
+                   dash.no_update
+        elif changed_id in ['{"base_id":"file-manager","name":"clear-data"}.n_clicks',
                             '{"base_id":"file-manager","name":"refresh-data"}.n_clicks'] \
                             and not update_data:
-            return dash.no_update, [], dash.no_update, dash.no_update, dash.no_update
+            return dash.no_update, [], dash.no_update, dash.no_update, dash.no_update, dash.no_update
         elif 'clear-data' in changed_id:
-            return dash.no_update, dash.no_update, [], dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, [], dash.no_update, dash.no_update, dash.no_update
         elif 'refresh-data' in changed_id and os.path.exists(self.manager_filename):
             with open(self.manager_filename, 'rb') as file:
-                data_project_dict = pickle.load(file)['data_project']
-                data_project.init_from_dict(data_project_dict)
-            table_data, row_indx, tiled_on = self._match_table_row(data_project, files_table, 
-                                                                   tiled_on)
+                contents = pickle.load(file)
+            data_project_dict = contents['data_project']
+            data_project.init_from_dict(data_project_dict)
+            project = contents['project_id']
+            table_data, row_indx, tiled_on = self._match_table_row(data_project, files_table, tiled_on)
+            print(f'Done after {time.time() - start} with project {project}')
             return table_data, row_indx, data_project.get_dict(), dash.no_update, \
-                tiled_on
+                tiled_on, project
         data_type = 'tiled' if tiled_on else 'file'     # Definition of the data type
         try:
             browse_data = data_project.browse_data(data_type, browse_format, \
@@ -240,7 +245,7 @@ class FileManager():
                                                    recursive=False)
         except Exception as e:
             print(f'Cannot connect to tiled due to {e}')
-            return dash.no_update, dash.no_update, dash.no_update, True, False
+            return dash.no_update, dash.no_update, dash.no_update, True, False, dash.no_update
         if bool(rows) and 'tiled-switch' not in changed_id:
             for row in rows:
                 selected_row = files_table[row]['uri']
@@ -248,6 +253,7 @@ class FileManager():
                                                               tiled_uri = selected_row,
                                                               dir_path = selected_row,
                                                               api_key=self.api_key)
+                project = selected_row
         if 'tiled-switch' in changed_id:
             # If the tiled selection triggered this callback, the data shown in the screen
             # should not be updated until a node (row) has been selected and imported
@@ -255,34 +261,35 @@ class FileManager():
         else:
             if len(data_project.data)>0:
                 with open(self.manager_filename, 'wb') as file:
-                    pickle.dump({'data_project': data_project.get_dict()}, file)
+                    pickle.dump({'data_project': data_project.get_dict(),
+                                 'project_id': project}, file)
             selected_data = data_project.get_dict()
         browse_data = DataProject(data=browse_data).get_table_dict()
-        print(f'Done after {time.time() - start}')
-        return browse_data, dash.no_update, selected_data, dash.no_update, dash.no_update
+        print(f'Done after {time.time() - start} with project {project}')
+        return browse_data, dash.no_update, selected_data, dash.no_update, dash.no_update, project
     
-    def _update_project_id(self, file_paths):
-        '''
-        This callback updates the project ID according to the file_paths
-        Args:
-            file_paths:         List of selected data sets for later analysis
-        Returns:
-            project_id:         Project UID to track the data set of interest
-        '''
-        project_id = dash.no_update
-        data_project_dict = dash.no_update
-        if len(file_paths)>0:
-            data_project = DataProject()
-            data_project.init_from_dict(file_paths)
-            data_project.add_to_splash(self.splash_uri)
-            project_id = data_project.project
-            if len(data_project.data)>0:
-                with open(self.manager_filename, 'wb') as file:
-                    pickle.dump({'data_project': data_project.get_dict()}, file)
-            data_project_dict = data_project.get_dict()
-        return data_project_dict, project_id
+    # def _update_project_id(self, file_paths):
+    #     '''
+    #     This callback updates the project ID according to the file_paths
+    #     Args:
+    #         file_paths:         List of selected data sets for later analysis
+    #     Returns:
+    #         project_id:         Project UID to track the data set of interest
+    #     '''
+    #     project_id = dash.no_update
+    #     data_project_dict = dash.no_update
+    #     if len(file_paths)>0:
+    #         data_project = DataProject()
+    #         data_project.init_from_dict(file_paths)
+    #         data_project.add_to_splash(self.splash_uri)
+    #         project_id = data_project.project
+    #         if len(data_project.data)>0:
+    #             with open(self.manager_filename, 'wb') as file:
+    #                 pickle.dump({'data_project': data_project.get_dict()}, file)
+    #         data_project_dict = data_project.get_dict()
+    #     return data_project_dict, project_id
     
-    def _match_table_row(self, data_project, files_table, tiled_on, browse_format='*'):
+    def _match_table_row(self, data_project, files_table, tiled_on, browse_format='**/'):
         first_uri = data_project.data[0].uri
         row_indx = next((indx for indx, row in enumerate(files_table) if row['uri'] in first_uri), None)
         if row_indx is None:
@@ -294,9 +301,12 @@ class FileManager():
                 tiled_uri = first_uri.split('/api/v1')[0]
             data_type = 'tiled' if tiled_on else 'file'     # Definition of the data type
             files_table = data_project.browse_data(data_type, browse_format, \
-                                                  tiled_uri = tiled_uri,
-                                                  dir_path=self.data_folder_root,
-                                                  api_key=self.api_key,
-                                                  recursive=False)
-            row_indx = next((indx for indx, row in enumerate(files_table) if row['uri'] in first_uri), None)
-        return files_table, [row_indx], tiled_on
+                                                   tiled_uri = tiled_uri,
+                                                   dir_path=self.data_folder_root,
+                                                   api_key=self.api_key,
+                                                   recursive=False)
+            row_indx = next((indx for indx, row in enumerate(files_table) if row.uri in first_uri), None)
+            out_table = DataProject(data=files_table).get_table_dict()
+        else:
+            out_table = files_table
+        return out_table, [row_indx], tiled_on

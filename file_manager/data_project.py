@@ -71,7 +71,8 @@ class DataProject:
             data:               Retrieve Dataset according to data_type and browse format
         '''
         if data_type == 'tiled':
-            uris = TiledDataset.browse_data(tiled_uri, browse_format, api_key=api_key, tiled_uris=[])
+            uris = TiledDataset.browse_data(tiled_uri, browse_format, api_key=api_key, tiled_uris=[],
+                                            recursive=recursive)
             data = [TiledDataset(uri=item, api_key=api_key) for item in uris]
         else:
             if browse_format=='*':
@@ -117,59 +118,61 @@ class DataProject:
         return event_uid
             
 
-    def add_to_splash(self, splash_uri):
-        '''
-        POST list of data sets to splash-ml with a corresponding project_id
-        Args:
-            splash_uri:         URI to splash-ml service
-        '''
-        project_id = str(uuid4())
-        validate_project_id = False
-        data_project_uris = [dataset.uri for dataset in self.data]
-        # Get the project ID of first element
-        splash_datasets = requests.post(
-            f'{splash_uri}/datasets/search', json={'uris': [data_project_uris[0]]}).json()
-        for splash_dataset in splash_datasets:
-            # Check that all the data sets in this project match the id
-            splash_project = requests.post(
-                f'{splash_uri}/datasets/search?page%5Blimit%5D={len(self.data)+1}', 
-                json={'uris': data_project_uris,
-                      'project': splash_dataset['project']}
-                ).json()
-            if len(splash_project) == len(self.data):
-                project_id = splash_dataset['project']
-                validate_project_id = True
-                break
-        self.project = project_id
-        if not validate_project_id:
-            datasets_dict = []
-            for dataset in self.data:
-                dataset.project = self.project
-                datasets_dict.append(dataset.__dict__)
-            # thread = Thread(target=data_project.add_to_splash, args=(self.splash_uri, )).start()
-            splash_project = requests.post(f'{splash_uri}/datasets', json=datasets_dict).json()
-        # update data sets uids to match splash-ml
-        splash_project_uris = [dataset['uri'] for dataset in splash_project]
-        for filename in data_project_uris:
-            indx = splash_project_uris.index(filename)
-            self.data[indx].uid = splash_project[indx]['uid']
-        pass
+    # def add_to_splash(self, splash_uri):
+    #     '''
+    #     POST list of data sets to splash-ml with a corresponding project_id
+    #     Args:
+    #         splash_uri:         URI to splash-ml service
+    #     '''
+    #     project_id = str(uuid4())
+    #     validate_project_id = False
+    #     data_project_uris = [dataset.uri for dataset in self.data]
+    #     # Get the project ID of first element
+    #     splash_datasets = requests.post(
+    #         f'{splash_uri}/datasets/search', json={'uris': [data_project_uris[0]]}).json()
+    #     for splash_dataset in splash_datasets:
+    #         # Check that all the data sets in this project match the id
+    #         splash_project = requests.post(
+    #             f'{splash_uri}/datasets/search?page%5Blimit%5D={len(self.data)+1}', 
+    #             json={'uris': data_project_uris,
+    #                   'project': splash_dataset['project']}
+    #             ).json()
+    #         if len(splash_project) == len(self.data):
+    #             project_id = splash_dataset['project']
+    #             validate_project_id = True
+    #             break
+    #     self.project = project_id
+    #     if not validate_project_id:
+    #         datasets_dict = []
+    #         for dataset in self.data:
+    #             dataset.project = self.project
+    #             datasets_dict.append(dataset.__dict__)
+    #         # thread = Thread(target=data_project.add_to_splash, args=(self.splash_uri, )).start()
+    #         splash_uids = requests.post(f'{splash_uri}/datasets', json=datasets_dict).json()
+    #         for indx, uid in enumerate(splash_uids):
+    #             self.data[indx].uid = uid
+    #     else:
+    #         # update data sets uids to match splash-ml
+    #         splash_project_uris = [dataset['uri'] for dataset in splash_project]
+    #         for filename in data_project_uris:
+    #             indx = splash_project_uris.index(filename)
+    #             self.data[indx].uid = splash_project[indx]['uid']
+    #     pass
     
-    def tiled_to_local_project(self, data_path, project_id):
+    def tiled_to_local_project(self, project_id, filenames):
         '''
         Convert a tiled data project to a local project while saving each dataset to filesystem
         Args:
-            data_path:      Target data path for new local data project
             project_id:     Project ID for new local data project
+            filenames:      List of target data paths for new local data project elements
         Returns:
             local_data_project
         '''
         local_datasets = []
-        for dataset in self.data:
-            img = Image.open(dataset.uri)       # Get data
-            file_extension = dataset.uri.split('.')[-1]
-            new_uri = f'{data_path}/{dataset.uid}.{file_extension}'
-            img.save(new_uri)                   # Save data to new path
+        for indx, dataset in enumerate(self.data):
+            img, _, _ = dataset.read_data(export='pillow')        # Get data
+            new_uri = f'{filenames[indx]}'
+            img.save(new_uri)                               # Save data to new path
             local_datasets.append(LocalDataset(new_uri, project=project_id))
         local_data_project = DataProject(data=local_datasets,
                                          project_id=project_id)
