@@ -8,11 +8,11 @@ from file_manager.dataset.dataset import Dataset
 
 
 class TiledDataset(Dataset):
-    def __init__(self, uri, type='tiled', tags=[], project=None, uid='1234', api_key=None, **kwargs):
+    def __init__(self, uri, type='tiled', tags=[], project=None, api_key=None, **kwargs): #, uid='1234', api_key=None, **kwargs):
         '''
         Definition of a tiled data set
         '''
-        super().__init__(uri, type, tags, project, uid)
+        super().__init__(uri, type, tags, project) #, uid)
         self.api_key=api_key
         pass
 
@@ -24,16 +24,24 @@ class TiledDataset(Dataset):
             Dataset URI
         '''
         rawBytes = io.BytesIO()
-        tiled_data = from_uri(self.uri, api_key=self.api_key)
-        img = tiled_data.export(rawBytes, format='jpeg')
+        uri = self.uri.split('?block=')[0]
+        indx = self.uri.split('?block=')[1]
+        tiled_data = from_uri(uri, api_key=self.api_key)
+        img = Image.fromarray(tiled_data[int(indx)])
+        # img = img_array.export(rawBytes, format='jpeg')
         rawBytes.seek(0)        # return to the start of the file
+        img = img.resize((300, 300))
         if export=='pillow':
-            return Image.open(rawBytes), self.uri, self.uid
+            return img, self.uri #, self.uid
+            # return Image.open(rawBytes), self.uri, self.uid
+        img.save(rawBytes, "JPEG")
+        rawBytes.seek(0)        # return to the start of the file
         img = base64.b64encode(rawBytes.read())
-        return f'data:image/jpeg;base64,{img.decode("utf-8")}', self.uri, self.uid
+        return f'data:image/jpeg;base64,{img.decode("utf-8")}', self.uri #, self.uid
 
     @staticmethod
-    def browse_data(tiled_uri, browse_format, tiled_uris=[], tiled_client=None, api_key=None):
+    def browse_data(tiled_uri, browse_format, tiled_uris=[], tiled_client=None, api_key=None, 
+                    recursive=False):
         '''
         Retrieve a list of nodes from tiled URI
         Args:
@@ -53,10 +61,12 @@ class TiledDataset(Dataset):
             nodes = list(tiled_client)
             for node in nodes:
                 mod_tiled_uri = TiledDataset.update_tiled_uri(tiled_uri, node)
-                if browse_format != '**/' and isinstance(tiled_client[node], Node):
+                if browse_format != '**/' and recursive:
+                    num_imgs = len(tiled_client[node])
+                    tiled_uris = tiled_uris + [f"{mod_tiled_uri}?block={i}" for i in range(num_imgs)]
                     # Recursively browse data if a node is encounteres
-                    TiledDataset.browse_data(mod_tiled_uri, browse_format, tiled_uris,
-                                            tiled_client=tiled_client[node], api_key=api_key)
+                    # TiledDataset.browse_data(mod_tiled_uri, browse_format, tiled_uris,
+                    #                         tiled_client=tiled_client[node], api_key=api_key)
                 else:
                     tiled_uris.append(mod_tiled_uri)
         else:
