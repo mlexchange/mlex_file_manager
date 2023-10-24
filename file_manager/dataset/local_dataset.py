@@ -34,14 +34,12 @@ class LocalDataset(Dataset):
         filename = self.uri
         img = Image.open(filename)
         if export == 'pillow':
-            return img, self.uri #, self.uid
-        img = img.resize((300, 300))
+            return img, self.uri
         rawBytes = io.BytesIO()
-        img.save(rawBytes, "JPEG")
+        img.save(rawBytes, "JPEG", quality=30)
         rawBytes.seek(0)        # return to the start of the file
         img = base64.b64encode(rawBytes.read())
-        file_ext = filename[filename.find('.')+1:]
-        return 'data:image/'+file_ext+';base64,'+img.decode("utf-8"), self.uri #, self.uid
+        return 'data:image/jpeg;base64,'+img.decode("utf-8"), self.uri
     
     @staticmethod
     def filepaths_from_directory(directory, formats=FORMATS, sort=True, recursive=True):
