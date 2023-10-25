@@ -24,7 +24,7 @@ class LocalDataset(Dataset):
         super().__init__(uri, type, tags, project) #, uid)
         pass
 
-    def read_data(self, export='base64'):
+    def read_data(self, export='base64', resize=True):
         '''
         Read data set
         Returns:
@@ -35,8 +35,10 @@ class LocalDataset(Dataset):
         img = Image.open(filename)
         if export == 'pillow':
             return img, self.uri
+        if resize:
+            img.thumbnail((200,200), Image.LANCZOS)
         rawBytes = io.BytesIO()
-        img.save(rawBytes, "JPEG", quality=30)
+        img.save(rawBytes, "JPEG")
         rawBytes.seek(0)        # return to the start of the file
         img = base64.b64encode(rawBytes.read())
         return 'data:image/jpeg;base64,'+img.decode("utf-8"), self.uri
