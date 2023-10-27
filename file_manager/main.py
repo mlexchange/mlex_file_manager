@@ -15,11 +15,12 @@ class FileManager():
         FileManager creates a dash file explorer that supports: (1) local file reading, and (2)
         data access through Tiled
         Args:
-            data_folder_root:       Root folder to data directory for local loading
-            upload_folder_root:     Root folder to upload directory
-            splash_uri:             URI to splash-ml service
-            max_file_size:          Maximum file size for uploaded data, defaults to 60000
-            api_key:                Tiled API key
+            data_folder_root:       [str] Root folder to data directory for local loading
+            upload_folder_root:     [str] Root folder to upload directory
+            splash_uri:             [str] URI to splash-ml service
+            max_file_size:          [int] Maximum file size for uploaded data, defaults to 60000
+            open_explorer:          [bool] Open/close the file explorer at start up
+            api_key:                [str] Tiled API key
         '''
         self.data_folder_root = data_folder_root
         self.upload_folder_root = upload_folder_root
