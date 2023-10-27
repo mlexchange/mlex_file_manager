@@ -17,11 +17,11 @@ NOT_ALLOWED_FORMATS = ['**/__pycache__/**', '**/.*', 'cache/', 'cache/**/', 'cac
 
 
 class LocalDataset(Dataset):
-    def __init__(self, uri, type='file', tags=[], project=None, **kwargs): #, uid='1234', **kwargs):
+    def __init__(self, uri, type='file', **kwargs):
         '''
         Definition of a local data set
         '''
-        super().__init__(uri, type, tags, project) #, uid)
+        super().__init__(uri, type)
         pass
 
     def read_data(self, export='base64', resize=True):
