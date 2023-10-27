@@ -132,19 +132,6 @@ class FileManager():
         )(self._load_dataset)
         pass
 
-        # app.long_callback(
-        #     Output({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data', 
-        #            allow_duplicate=True), 
-        #     Output({'base_id': 'file-manager', 'name': 'project-id'}, 'data'),
-        #     Input({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data'),
-        #     cancel=[
-        #         Input({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data')
-        #         ],
-        #     interval=100,
-        #     prevent_initial_call=True
-        # )(self._update_project_id)
-        # pass
-
     @staticmethod
     def _toggle_collapse(collapse_n_clicks, import_n_clicks, refresh_n_clicks, is_open):
         '''
@@ -267,27 +254,6 @@ class FileManager():
         browse_data = DataProject(data=browse_data).get_table_dict()
         print(f'Done after {time.time() - start} with project {project}')
         return browse_data, dash.no_update, selected_data, dash.no_update, dash.no_update, project
-    
-    # def _update_project_id(self, file_paths):
-    #     '''
-    #     This callback updates the project ID according to the file_paths
-    #     Args:
-    #         file_paths:         List of selected data sets for later analysis
-    #     Returns:
-    #         project_id:         Project UID to track the data set of interest
-    #     '''
-    #     project_id = dash.no_update
-    #     data_project_dict = dash.no_update
-    #     if len(file_paths)>0:
-    #         data_project = DataProject()
-    #         data_project.init_from_dict(file_paths)
-    #         data_project.add_to_splash(self.splash_uri)
-    #         project_id = data_project.project
-    #         if len(data_project.data)>0:
-    #             with open(self.manager_filename, 'wb') as file:
-    #                 pickle.dump({'data_project': data_project.get_dict()}, file)
-    #         data_project_dict = data_project.get_dict()
-    #     return data_project_dict, project_id
     
     def _match_table_row(self, data_project, files_table, tiled_on, browse_format='**/'):
         first_uri = data_project.data[0].uri
