@@ -12,7 +12,7 @@ from file_manager.dataset.tiled_dataset import TiledDataset
 
 
 class DataProject:
-    def __init__(self, data: List = [], project_id = None, num_workers=4):
+    def __init__(self, data: List = [], project_id = None):
         '''
         Definition of a DataProject
         Args:
@@ -21,7 +21,6 @@ class DataProject:
         '''
         self.data = data
         self.project_id = project_id
-        self.num_workers = num_workers
         pass
 
     def init_from_dict(self, data: List, api_key=None):
@@ -36,13 +35,12 @@ class DataProject:
                 self.data.append(TiledDataset(**item))
             else:
                 self.data.append(LocalDataset(**item))
+        pass
     
     def init_from_splash(self, splash_uri, project_id=None, api_key=None):
         '''
         Initialize the object from splash
         '''
-        print('Init from splash')
-        start = time.time()
         datasets = []
         num_elem = 5000
         indx = 0
@@ -52,8 +50,8 @@ class DataProject:
             num_elem = len(elem)
             datasets += elem
             indx += 5000
-        print(f'Done after {time.time()-start}')
         self.init_from_dict(datasets, api_key)
+        pass
         
     @staticmethod
     def browse_data(data_type, browse_format, dir_path=None, tiled_uri=None, api_key=None, 
@@ -103,7 +101,6 @@ class DataProject:
         data_table_dict = [{"uri": dataset.uri, "type": dataset.type} for dataset in self.data]
         return data_table_dict
     
-
     def get_event_id(self, splash_uri):
         '''
         Post a tagging event in splash-ml
@@ -116,48 +113,6 @@ class DataProject:
                                   json={'tagger_id': 'labelmaker',
                                         'run_time': str(datetime.utcnow())}).json()['uid']
         return event_uid
-            
-
-    # def add_to_splash(self, splash_uri):
-    #     '''
-    #     POST list of data sets to splash-ml with a corresponding project_id
-    #     Args:
-    #         splash_uri:         URI to splash-ml service
-    #     '''
-    #     project_id = str(uuid4())
-    #     validate_project_id = False
-    #     data_project_uris = [dataset.uri for dataset in self.data]
-    #     # Get the project ID of first element
-    #     splash_datasets = requests.post(
-    #         f'{splash_uri}/datasets/search', json={'uris': [data_project_uris[0]]}).json()
-    #     for splash_dataset in splash_datasets:
-    #         # Check that all the data sets in this project match the id
-    #         splash_project = requests.post(
-    #             f'{splash_uri}/datasets/search?page%5Blimit%5D={len(self.data)+1}', 
-    #             json={'uris': data_project_uris,
-    #                   'project': splash_dataset['project']}
-    #             ).json()
-    #         if len(splash_project) == len(self.data):
-    #             project_id = splash_dataset['project']
-    #             validate_project_id = True
-    #             break
-    #     self.project = project_id
-    #     if not validate_project_id:
-    #         datasets_dict = []
-    #         for dataset in self.data:
-    #             dataset.project = self.project
-    #             datasets_dict.append(dataset.__dict__)
-    #         # thread = Thread(target=data_project.add_to_splash, args=(self.splash_uri, )).start()
-    #         splash_uids = requests.post(f'{splash_uri}/datasets', json=datasets_dict).json()
-    #         for indx, uid in enumerate(splash_uids):
-    #             self.data[indx].uid = uid
-    #     else:
-    #         # update data sets uids to match splash-ml
-    #         splash_project_uris = [dataset['uri'] for dataset in splash_project]
-    #         for filename in data_project_uris:
-    #             indx = splash_project_uris.index(filename)
-    #             self.data[indx].uid = splash_project[indx]['uid']
-    #     pass
     
     def tiled_to_local_project(self, project_id, filenames):
         '''
