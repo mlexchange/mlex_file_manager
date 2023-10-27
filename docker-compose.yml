@@ -5,13 +5,12 @@ services:
         restart: "unless-stopped"
         container_name: "dash-file-manager"
         build: 
-            context: 'front/'
-            dockerfile: 'docker/Dockerfile'
-        command: 'python src/fronty.py'
+            context: '.'
+            dockerfile: 'Dockerfile'
         environment:
-            DATA_DIR: "${PWD}/data/"
+            SPLASH_URL: "${SPLASH_URL}"
+            TILED_KEY: "${TILED_KEY}"
         volumes:
-            - "./data:/app/work/data"
-            - "./front/src:/app/work/src"
+            - "${DATA_DIR}:/app/work/data"
         ports:
-            - '8060:8060'
+            - '127.0.0.1:8050:8050'
