@@ -22,14 +22,15 @@ external_stylesheets = [
     dbc.themes.BOOTSTRAP,
     "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
     ]
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
+app = dash.Dash(__name__,
+                external_stylesheets=external_stylesheets,
                 long_callback_manager=long_callback_manager)
 app.title = "MLExchange Example"
 
 #### SETUP FILE MANAGER ####
 dash_file_explorer = FileManager(DOCKER_DATA,
                                  UPLOAD_FOLDER_ROOT,
-                                 open_explorer=False,
+                                 open_explorer=True,
                                  api_key=TILED_KEY,
                                  splash_uri=SPLASH_URL)
 dash_file_explorer.init_callbacks(app)
