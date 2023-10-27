@@ -1,4 +1,4 @@
-import base64, io
+import base64, io, re
 from PIL import Image
 
 from tiled.client import from_uri
@@ -8,36 +8,34 @@ from file_manager.dataset.dataset import Dataset
 
 
 class TiledDataset(Dataset):
-    def __init__(self, uri, type='tiled', tags=[], project=None, api_key=None, **kwargs): #, uid='1234', api_key=None, **kwargs):
+    def __init__(self, uri, type='tiled', api_key=None, **kwargs):
         '''
         Definition of a tiled data set
         '''
-        super().__init__(uri, type, tags, project) #, uid)
+        super().__init__(uri, type)
         self.api_key=api_key
         pass
 
-    def read_data(self, export='base64'):
+    def read_data(self, export='base64', resize=True):
         '''
         Read data set
         Returns:
             Base64/PIL image
             Dataset URI
         '''
-        rawBytes = io.BytesIO()
-        uri = self.uri.split('?block=')[0]
-        indx = self.uri.split('?block=')[1]
-        tiled_data = from_uri(uri, api_key=self.api_key)
-        img = Image.fromarray(tiled_data[int(indx)])
-        # img = img_array.export(rawBytes, format='jpeg')
-        rawBytes.seek(0)        # return to the start of the file
-        img = img.resize((300, 300))
+        [base_uri, indx] = self.uri.split('?block=')
+        tiled_client = from_uri(base_uri, api_key=self.api_key)
         if export=='pillow':
-            return img, self.uri #, self.uid
-            # return Image.open(rawBytes), self.uri, self.uid
-        img.save(rawBytes, "JPEG")
-        rawBytes.seek(0)        # return to the start of the file
+            img = tiled_client.values[indx]
+            return Image.fromarray(img), self.uri
+        rawBytes = io.BytesIO()
+        if resize:
+            tiled_client.export(rawBytes, format='small_jpeg', slice=int(indx))
+        else:
+            tiled_client.export(rawBytes, format='jpeg', slice=int(indx))
+        rawBytes.seek(0)
         img = base64.b64encode(rawBytes.read())
-        return f'data:image/jpeg;base64,{img.decode("utf-8")}', self.uri #, self.uid
+        return f'data:image/jpeg;base64,{img.decode("utf-8")}', self.uri
 
     @staticmethod
     def browse_data(tiled_uri, browse_format, tiled_uris=[], tiled_client=None, api_key=None, 
@@ -62,11 +60,9 @@ class TiledDataset(Dataset):
             for node in nodes:
                 mod_tiled_uri = TiledDataset.update_tiled_uri(tiled_uri, node)
                 if browse_format != '**/' and recursive:
-                    num_imgs = len(tiled_client[node])
+                    node_info = tiled_client[node]
+                    num_imgs = len(node_info)
                     tiled_uris = tiled_uris + [f"{mod_tiled_uri}?block={i}" for i in range(num_imgs)]
-                    # Recursively browse data if a node is encounteres
-                    # TiledDataset.browse_data(mod_tiled_uri, browse_format, tiled_uris,
-                    #                         tiled_client=tiled_client[node], api_key=api_key)
                 else:
                     tiled_uris.append(mod_tiled_uri)
         else:

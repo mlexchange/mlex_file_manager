@@ -110,7 +110,7 @@ class FileManager():
              prevent_initial_call=True
         )(self._upload_zip)
 
-        app.callback(
+        app.long_callback(
             [Output({'base_id': 'file-manager', 'name': 'files-table'}, 'data'),
              Output({'base_id': 'file-manager', 'name': 'files-table'}, 'selected_rows'),
              Output({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data'),
