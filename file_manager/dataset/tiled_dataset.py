@@ -23,8 +23,11 @@ class TiledDataset(Dataset):
             Base64/PIL image
             Dataset URI
         '''
-        [base_uri, indx] = self.uri.split('?block=')
-        tiled_client = from_uri(base_uri, api_key=self.api_key)
+        base_uri, indx = self.array_to_metadata_uri(self.uri)
+        if self.api_key:
+            tiled_client = from_uri(base_uri, api_key=self.api_key)
+        else:
+            tiled_client = from_uri(base_uri)
         if export=='pillow':
             img = tiled_client.values[indx]
             return Image.fromarray(img), self.uri
@@ -54,7 +57,11 @@ class TiledDataset(Dataset):
             tiled_uris:         List of tiled URIs found in tiled client
         '''
         if not tiled_client:
-            tiled_client = from_uri(tiled_uri, api_key=api_key)
+            metadata_tiled_uri, _ = TiledDataset.array_to_metadata_uri(tiled_uri)
+            if api_key:
+                tiled_client = from_uri(metadata_tiled_uri, api_key=api_key)
+            else:
+                tiled_client = from_uri(metadata_tiled_uri)
         if isinstance(tiled_client, Node):
             nodes = list(tiled_client)
             for node in nodes:
@@ -62,7 +69,7 @@ class TiledDataset(Dataset):
                 if browse_format != '**/' and recursive:
                     node_info = tiled_client[node]
                     num_imgs = len(node_info)
-                    tiled_uris = tiled_uris + [f"{mod_tiled_uri}?block={i}" for i in range(num_imgs)]
+                    tiled_uris = tiled_uris + [f"{mod_tiled_uri}?slice={i}" for i in range(num_imgs)]
                 else:
                     tiled_uris.append(mod_tiled_uri)
         else:
@@ -74,9 +81,22 @@ class TiledDataset(Dataset):
         '''
         Update tiled URI to reflect nodes
         '''
-        if '/api/v1/metadata' in tiled_uri:
+        if '/api/v1/array/full' in tiled_uri:
             return f'{tiled_uri}/{node}'
         elif tiled_uri[-1] == '/':
-            return f'{tiled_uri}api/v1/metadata/{node}'
+            return f'{tiled_uri}api/v1/array/full/{node}'
         else:
-            return f'{tiled_uri}/api/v1/metadata/{node}'
+            return f'{tiled_uri}/api/v1/array/full/{node}'
+        
+    @staticmethod
+    def array_to_metadata_uri(tiled_uri):
+        '''
+        Converts an array tiled uri to a metadata uri
+        '''
+        tiled_uri = tiled_uri.replace('array/full', 'metadata')
+        if '?slice=' in tiled_uri:
+            tiled_uri, indx = tiled_uri.split('?slice=')
+            indx = int(indx)
+        else:
+            indx = None
+        return tiled_uri, indx
