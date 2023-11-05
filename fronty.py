@@ -9,8 +9,8 @@ import diskcache
 from file_manager.main import FileManager
 from file_manager.data_project import DataProject
 
-DOCKER_DATA = pathlib.Path.home() / 'data'
-UPLOAD_FOLDER_ROOT = DOCKER_DATA / 'upload'
+DATA_PATH = pathlib.Path.home() / 'data'
+UPLOAD_FOLDER_ROOT = DATA_PATH / 'upload'
 SPLASH_URL = str(os.environ['SPLASH_URL'])
 TILED_KEY = str(os.environ['TILED_KEY'])
 
@@ -28,7 +28,7 @@ app = dash.Dash(__name__,
 app.title = "MLExchange Example"
 
 #### SETUP FILE MANAGER ####
-dash_file_explorer = FileManager(DOCKER_DATA,
+dash_file_explorer = FileManager(DATA_PATH,
                                  UPLOAD_FOLDER_ROOT,
                                  open_explorer=True,
                                  api_key=TILED_KEY,
