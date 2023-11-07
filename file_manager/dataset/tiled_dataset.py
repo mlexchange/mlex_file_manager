@@ -1,4 +1,5 @@
-import base64, io, re
+import base64, io
+import numpy as np
 from PIL import Image
 
 from tiled.client import from_uri
@@ -16,7 +17,7 @@ class TiledDataset(Dataset):
         self.api_key=api_key
         pass
 
-    def read_data(self, export='base64', resize=True):
+    def read_data(self, export='base64', resize=True, threshold=1100):
         '''
         Read data set
         Returns:
@@ -28,14 +29,25 @@ class TiledDataset(Dataset):
             tiled_client = from_uri(base_uri, api_key=self.api_key)
         else:
             tiled_client = from_uri(base_uri)
-        if export=='pillow':
-            img = tiled_client.values[indx]
-            return Image.fromarray(img), self.uri
-        rawBytes = io.BytesIO()
         if resize:
-            tiled_client.export(rawBytes, format='small_jpeg', slice=int(indx))
+            if len(tiled_client.shape)==4:
+                img_array = tiled_client[indx,0,::5,::5]
+            else:
+                img_array = tiled_client[indx,::5,::5]
         else:
-            tiled_client.export(rawBytes, format='jpeg', slice=int(indx))
+            if len(tiled_client.shape)==4:
+                img_array = tiled_client[indx,0]
+            else:
+                img_array = tiled_client[indx]
+        if np.max(img_array)>255:
+            img_array[img_array>threshold]=threshold
+            img_array = (img_array-np.min(img_array))/(np.max(img_array)-np.min(img_array))
+        img = Image.fromarray(img_array*255)
+        img = img.convert("L")
+        if export=='pillow':
+            return img, self.uri
+        rawBytes = io.BytesIO()
+        img.save(rawBytes, format="JPEG")
         rawBytes.seek(0)
         img = base64.b64encode(rawBytes.read())
         return f'data:image/jpeg;base64,{img.decode("utf-8")}', self.uri
@@ -73,7 +85,11 @@ class TiledDataset(Dataset):
                 else:
                     tiled_uris.append(mod_tiled_uri)
         else:
-            tiled_uris.append(tiled_uri)
+            if browse_format != '**/' and recursive:
+                num_imgs = len(tiled_client)
+                tiled_uris = tiled_uris + [f"{tiled_uri}?slice={i}" for i in range(num_imgs)]
+            else:
+                tiled_uris.append(tiled_uri)
         return tiled_uris
     
     @staticmethod
