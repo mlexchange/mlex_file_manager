@@ -2,6 +2,7 @@ import os, pathlib, pickle, zipfile
 import dash
 from dash import dcc, html, Input, Output, State
 import dash_bootstrap_components as dbc
+from dash.exceptions import PreventUpdate
 import time
 
 from file_manager.dash_file_explorer import create_file_explorer
@@ -124,9 +125,9 @@ class FileManager():
              Input({'base_id': 'file-manager', 'name': 'import-dir'}, 'n_clicks'),
              Input({'base_id': 'file-manager', 'name': 'refresh-data'}, 'n_clicks'),
              Input({'base_id': 'file-manager', 'name': 'upload-data'}, 'data'),
-             Input({'base_id': 'file-manager', 'name': 'confirm-update-data'}, 'data'),
              Input({'base_id': 'file-manager', 'name': 'clear-data'}, 'n_clicks'),
              Input({'base_id': 'file-manager', 'name': 'tiled-switch'}, 'on'),
+             State({'base_id': 'file-manager', 'name': 'confirm-update-data'}, 'data'),
              State({'base_id': 'file-manager', 'name': 'files-table'}, 'selected_rows'),
              State({'base_id': 'file-manager', 'name': 'tiled-uri'}, 'value'),
              State({'base_id': 'file-manager', 'name': 'files-table'}, 'data'),
@@ -147,9 +148,9 @@ class FileManager():
             is_open:            Updated state of is_open
         '''
         changed_id = dash.callback_context.triggered[0]['prop_id']
-        if 'refresh-data' in changed_id:
+        if 'refresh-data' in changed_id or 'import' in changed_id:
             return False
-        elif collapse_n_clicks or import_n_clicks:
+        elif collapse_n_clicks:
             return not is_open
         return is_open
 
@@ -178,8 +179,9 @@ class FileManager():
                 os.remove(path_to_zip_file)
         return True
     
-    def _load_dataset(self, browse_format, import_n_clicks, refresh_data, uploaded_data, update_data, \
-                      clear_data_n_clicks, tiled_on, rows, tiled_uri, files_table, import_format):
+    def _load_dataset(self, browse_format, import_n_clicks, refresh_data, uploaded_data,
+                      clear_data_n_clicks, tiled_on, update_data, rows, tiled_uri, files_table, 
+                      import_format):
         '''
         This callback manages the actions of file manager
         Args:
@@ -187,9 +189,9 @@ class FileManager():
             import_n_clicks:        Number of clicks on import button
             refresh_data:           Number of clicks on refresh data button
             uploaded_data:          Flag that indicates if new data has been uploaded
-            update_data:            Flag that indicates if the dataset can be updated
             clear_data_n_clicks:    Number of clicks on clear data button
             tiled_on:               Bool indicating if tiled has been selected for data access
+            update_data:            Flag that indicates if the dataset can be updated
             rows:                   Selected rows in table of files/directories/nodes
             tiled_uri:              Tiled URI for data access
             files_table:            Current values within the table of files/directories/nodes
@@ -206,13 +208,12 @@ class FileManager():
         data_project = DataProject(data=[])
         project = dash.no_update
         # prevent update according to update_data flag
-        if 'import-dir' in changed_id and not update_data:
+        if changed_id in ['{"base_id":"file-manager","name":"clear-data"}.n_clicks',
+                          '{"base_id":"file-manager","name":"refresh-data"}.n_clicks'] and not update_data:
+            raise PreventUpdate
+        elif 'import-dir' in changed_id and not update_data:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, \
                    dash.no_update
-        elif changed_id in ['{"base_id":"file-manager","name":"clear-data"}.n_clicks',
-                            '{"base_id":"file-manager","name":"refresh-data"}.n_clicks'] \
-                            and not update_data:
-            return dash.no_update, [], dash.no_update, dash.no_update, dash.no_update, dash.no_update
         elif 'clear-data' in changed_id:
             return dash.no_update, dash.no_update, [], dash.no_update, dash.no_update, dash.no_update
         elif 'refresh-data' in changed_id and os.path.exists(self.manager_filename):
