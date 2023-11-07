@@ -4,11 +4,12 @@ import dash_daq as daq
 import dash_uploader as du
 
 
-def create_file_explorer(max_file_size):
+def create_file_explorer(max_file_size, default_tiled_uri=''):
     '''
     Creates the dash components for the file explorer
     Args:
         max_file_size:      Maximum file size to be uploaded
+        default_tiled_uri:  Default Tiled URI to be displayed in file manager
     Returns:
         file_explorer:      HTML.DIV with all the corresponding components of the file explorer
     '''
@@ -96,6 +97,7 @@ def create_file_explorer(max_file_size):
                                     dbc.InputGroup([
                                         dbc.InputGroupText('URI'), 
                                         dbc.Input(placeholder='tiled uri', 
+                                                  value=default_tiled_uri,
                                                   id={'base_id': 'file-manager', 
                                                       'name': 'tiled-uri'})
                                     ]),

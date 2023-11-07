@@ -10,7 +10,7 @@ from file_manager.data_project import DataProject
 
 class FileManager():
     def __init__(self, data_folder_root, upload_folder_root, splash_uri='http://splash:80/api/v0', 
-                 max_file_size=60000, open_explorer=True, api_key=None):
+                 max_file_size=60000, open_explorer=True, api_key=None, default_tiled_uri=''):
         '''
         FileManager creates a dash file explorer that supports: (1) local file reading, and (2)
         data access through Tiled
@@ -21,6 +21,7 @@ class FileManager():
             max_file_size:          [int] Maximum file size for uploaded data, defaults to 60000
             open_explorer:          [bool] Open/close the file explorer at start up
             api_key:                [str] Tiled API key
+            default_tiled_uri:      [str] Default Tiled URI to be displayed in file manager
         '''
         self.data_folder_root = data_folder_root
         self.upload_folder_root = upload_folder_root
@@ -82,7 +83,7 @@ class FileManager():
                         ),
                 ], className="g-0", justify="center"),
                 dbc.Collapse(
-                    create_file_explorer(max_file_size),
+                    create_file_explorer(max_file_size, default_tiled_uri),
                     id={'base_id': 'file-manager', 'name': 'collapse-explorer'},
                     is_open=open_explorer,
                 ),
