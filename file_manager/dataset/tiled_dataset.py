@@ -1,6 +1,9 @@
 import base64, io
 import numpy as np
 from PIL import Image
+from requests.auth import HTTPBasicAuth
+import requests
+import time
 
 from tiled.client import from_uri
 from tiled.client.node import Node
@@ -24,21 +27,20 @@ class TiledDataset(Dataset):
             Base64/PIL image
             Dataset URI
         '''
-        base_uri, indx = self.array_to_metadata_uri(self.uri)
         if self.api_key:
-            tiled_client = from_uri(base_uri, api_key=self.api_key)
+            auth = HTTPBasicAuth('apikey', self.api_key)
         else:
-            tiled_client = from_uri(base_uri)
+            auth = None
         if resize:
-            if len(tiled_client.shape)==4:
-                img_array = tiled_client[indx,0,::5,::5]
-            else:
-                img_array = tiled_client[indx,::5,::5]
+            contents = requests.get(f'{self.uri},0,::10,::10', auth=auth).content
+            img_tmp = np.frombuffer(contents, dtype=np.uint32)
+            img_array = np.copy(img_tmp)
+            img_array = img_array.reshape((103,103))
         else:
-            if len(tiled_client.shape)==4:
-                img_array = tiled_client[indx,0]
-            else:
-                img_array = tiled_client[indx]
+            contents = requests.get(self.uri).content
+            img_tmp = np.frombuffer(contents, dtype=np.uint32)
+            img_array = np.copy(img_tmp)
+            img_array = img_array.reshape((1024,1026))
         if np.max(img_array)>255:
             img_array[img_array>threshold]=threshold
             img_array = (img_array-np.min(img_array))/(np.max(img_array)-np.min(img_array))
@@ -51,6 +53,29 @@ class TiledDataset(Dataset):
         rawBytes.seek(0)
         img = base64.b64encode(rawBytes.read())
         return f'data:image/jpeg;base64,{img.decode("utf-8")}', self.uri
+    
+    # @staticmethod
+    # def read_datasets(tiled_uris):
+    #     base_tiled_uri, indx = tiled_uris[0].split('?slice=')
+    #     uris = []
+    #     for tiled_uri in tiled_uris[1:]:
+    #         current_indx = tiled_uri.split('?slice=')[-1]
+    #         indx += f',{current_indx}'
+    #         uris.append(tiled_uri)
+    #     contents = requests.get(f'{base_tiled_uri},[{indx}],0,::10,::10').content
+    #     img_tmp = np.frombuffer(contents, dtype=np.uint32)
+    #     img_array = np.copy(img_tmp)
+    #     img_array = img_array.reshape((len(tiled_uris),103,103))
+    #     images = []
+    #     for ii in range(len(tiled_uris)):
+    #         img = Image.fromarray(img_array[ii,]*255)
+    #         img = img.convert("L")
+    #         rawBytes = io.BytesIO()
+    #         img.save(rawBytes, format="JPEG")
+    #         rawBytes.seek(0)
+    #         img = base64.b64encode(rawBytes.read())
+    #         images.append(f'data:image/jpeg;base64,{img.decode("utf-8")}')
+    #     return images, uris
 
     @staticmethod
     def browse_data(tiled_uri, browse_format, tiled_uris=[], tiled_client=None, api_key=None, 
