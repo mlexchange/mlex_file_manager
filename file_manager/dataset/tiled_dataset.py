@@ -1,15 +1,13 @@
-import base64, io
+import base64, io, time
 import numpy as np
 from PIL import Image
 from requests.auth import HTTPBasicAuth
 import requests
-import time
 
 from tiled.client import from_uri
 from tiled.client.node import Node
 
 from file_manager.dataset.dataset import Dataset
-
 
 class TiledDataset(Dataset):
     def __init__(self, uri, type='tiled', api_key=None, **kwargs):
@@ -31,20 +29,44 @@ class TiledDataset(Dataset):
             auth = HTTPBasicAuth('apikey', self.api_key)
         else:
             auth = None
+        # Retrieve tiled_uri and expected shape
+        tiled_uri, metadata = self.uri.split('&expected_shape=')
+        expected_shape, dtype = metadata.split('&dtype=')
+        expected_shape = np.array(list(map(int, expected_shape.split('%2C'))))
+        # Validate image data
+        if len(expected_shape)==3:
+            if expected_shape[0] in [1,3,4]:          # channels first
+                expected_shape = expected_shape[[1,2,0]]
+            elif expected_shape[-1] not in [1,3,4]:   # channels last
+                raise RuntimeError(f"Not supported type of data. Tiled uri: {tiled_uri} and data \
+                                    dimension {expected_shape}")
+        elif 2>len(expected_shape) or len(expected_shape)>3:
+            raise RuntimeError(f"Not supported type of data. Tiled uri: {tiled_uri} and data \
+                               dimension {expected_shape}")
+        # Resize if needed
         if resize:
-            contents = requests.get(f'{self.uri},0,::10,::10', auth=auth).content
-            img_tmp = np.frombuffer(contents, dtype=np.uint32)
-            img_array = np.copy(img_tmp)
-            img_array = img_array.reshape((103,103))
+            # start = time.time()
+            contents = requests.get(f'{tiled_uri},:,::10,::10', auth=auth).content
+            # print(f'Response alone: {time.time()-start}', flush=True)
+            expected_shape[0] = expected_shape[0]//10 + (expected_shape[0] % 10 > 0)
+            expected_shape[1] = expected_shape[1]//10 + (expected_shape[1] % 10 > 0)
         else:
-            contents = requests.get(self.uri).content
-            img_tmp = np.frombuffer(contents, dtype=np.uint32)
-            img_array = np.copy(img_tmp)
-            img_array = img_array.reshape((1024,1026))
+            # while status_code == 502 and trials<5:
+            contents = requests.get(tiled_uri).content
+        try:
+            img_buffer = np.frombuffer(contents, dtype=np.dtype(dtype))
+        except Exception as e:
+            print(f'Buffer error due to {e} with contents: {contents} and tiled uri {tiled_uri}', flush=True)
+            pass
+        img_array = np.copy(img_buffer)
+        img_array = img_array.reshape(expected_shape)         # reshape contents accordingly
+        # Process raw data if needed
         if np.max(img_array)>255:
             img_array[img_array>threshold]=threshold
-            img_array = (img_array-np.min(img_array))/(np.max(img_array)-np.min(img_array))
-        img = Image.fromarray(img_array*255)
+            img_array = (img_array-np.min(img_array))*255/(np.max(img_array)-np.min(img_array))
+        img_array = np.squeeze(img_array.astype(np.uint8))
+        # Prepare image
+        img = Image.fromarray(img_array)
         img = img.convert("L")
         if export=='pillow':
             return img, self.uri
@@ -53,29 +75,6 @@ class TiledDataset(Dataset):
         rawBytes.seek(0)
         img = base64.b64encode(rawBytes.read())
         return f'data:image/jpeg;base64,{img.decode("utf-8")}', self.uri
-    
-    # @staticmethod
-    # def read_datasets(tiled_uris):
-    #     base_tiled_uri, indx = tiled_uris[0].split('?slice=')
-    #     uris = []
-    #     for tiled_uri in tiled_uris[1:]:
-    #         current_indx = tiled_uri.split('?slice=')[-1]
-    #         indx += f',{current_indx}'
-    #         uris.append(tiled_uri)
-    #     contents = requests.get(f'{base_tiled_uri},[{indx}],0,::10,::10').content
-    #     img_tmp = np.frombuffer(contents, dtype=np.uint32)
-    #     img_array = np.copy(img_tmp)
-    #     img_array = img_array.reshape((len(tiled_uris),103,103))
-    #     images = []
-    #     for ii in range(len(tiled_uris)):
-    #         img = Image.fromarray(img_array[ii,]*255)
-    #         img = img.convert("L")
-    #         rawBytes = io.BytesIO()
-    #         img.save(rawBytes, format="JPEG")
-    #         rawBytes.seek(0)
-    #         img = base64.b64encode(rawBytes.read())
-    #         images.append(f'data:image/jpeg;base64,{img.decode("utf-8")}')
-    #     return images, uris
 
     @staticmethod
     def browse_data(tiled_uri, browse_format, tiled_uris=[], tiled_client=None, api_key=None, 
@@ -105,14 +104,22 @@ class TiledDataset(Dataset):
                 mod_tiled_uri = TiledDataset.update_tiled_uri(tiled_uri, node)
                 if browse_format != '**/' and recursive:
                     node_info = tiled_client[node]
-                    num_imgs = len(node_info)
-                    tiled_uris = tiled_uris + [f"{mod_tiled_uri}?slice={i}" for i in range(num_imgs)]
+                    dtype = node_info.dtype
+                    data_shape = node_info.shape
+                    num_imgs = data_shape[0]
+                    expected_shape = list(map(str, data_shape[1:]))
+                    expected_shape = '%2C'.join(expected_shape)
+                    tiled_uris = tiled_uris + [f"{mod_tiled_uri}?slice={i}&expected_shape={expected_shape}&dtype={dtype}" for i in range(num_imgs)]
                 else:
                     tiled_uris.append(mod_tiled_uri)
         else:
             if browse_format != '**/' and recursive:
-                num_imgs = len(tiled_client)
-                tiled_uris = tiled_uris + [f"{tiled_uri}?slice={i}" for i in range(num_imgs)]
+                data_shape = tiled_client.shape
+                dtype = tiled_client.dtype
+                num_imgs = int(data_shape[0])
+                expected_shape = list(map(str, data_shape[1:]))
+                expected_shape = '%2C'.join(expected_shape)
+                tiled_uris = tiled_uris + [f"{tiled_uri}?slice={i}&expected_shape={expected_shape}&dtype={dtype}" for i in range(num_imgs)]
             else:
                 tiled_uris.append(tiled_uri)
         return tiled_uris
