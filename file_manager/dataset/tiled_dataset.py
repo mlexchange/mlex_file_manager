@@ -48,7 +48,7 @@ class TiledDataset(Dataset):
         # Resize if needed
         if resize:
             # start = time.time()
-            while status_code == 502 and trials<5:
+            while status_code!=200 and trials<5:
                 if len(expected_shape)==3:
                     response = requests.get(f'{tiled_uri},:,::10,::10', auth=auth)
                 else:
@@ -60,7 +60,7 @@ class TiledDataset(Dataset):
             expected_shape[0] = expected_shape[0]//10 + (expected_shape[0] % 10 > 0)
             expected_shape[1] = expected_shape[1]//10 + (expected_shape[1] % 10 > 0)
         else:
-            while status_code == 502 and trials<5:
+            while status_code!=200 and trials<5:
                 response = requests.get(tiled_uri)
                 status_code = response.status_code
                 trials =+ 1
