@@ -46,7 +46,10 @@ class TiledDataset(Dataset):
         # Resize if needed
         if resize:
             # start = time.time()
-            contents = requests.get(f'{tiled_uri},:,::10,::10', auth=auth).content
+            if len(expected_shape)==3:
+                contents = requests.get(f'{tiled_uri},:,::10,::10', auth=auth).content
+            else:
+                contents = requests.get(f'{tiled_uri},::10,::10', auth=auth).content
             # print(f'Response alone: {time.time()-start}', flush=True)
             expected_shape[0] = expected_shape[0]//10 + (expected_shape[0] % 10 > 0)
             expected_shape[1] = expected_shape[1]//10 + (expected_shape[1] % 10 > 0)
