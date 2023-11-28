@@ -43,19 +43,28 @@ class TiledDataset(Dataset):
         elif 2>len(expected_shape) or len(expected_shape)>3:
             raise RuntimeError(f"Not supported type of data. Tiled uri: {tiled_uri} and data \
                                dimension {expected_shape}")
+        status_code = 502
+        trials = 0
         # Resize if needed
         if resize:
             # start = time.time()
-            if len(expected_shape)==3:
-                contents = requests.get(f'{tiled_uri},:,::10,::10', auth=auth).content
-            else:
-                contents = requests.get(f'{tiled_uri},::10,::10', auth=auth).content
+            while status_code == 502 and trials<5:
+                if len(expected_shape)==3:
+                    response = requests.get(f'{tiled_uri},:,::10,::10', auth=auth)
+                else:
+                    response = requests.get(f'{tiled_uri},::10,::10', auth=auth)
+                status_code = response.status_code
+                trials =+ 1
+            contents = response.content
             # print(f'Response alone: {time.time()-start}', flush=True)
             expected_shape[0] = expected_shape[0]//10 + (expected_shape[0] % 10 > 0)
             expected_shape[1] = expected_shape[1]//10 + (expected_shape[1] % 10 > 0)
         else:
-            # while status_code == 502 and trials<5:
-            contents = requests.get(tiled_uri).content
+            while status_code == 502 and trials<5:
+                response = requests.get(tiled_uri)
+                status_code = response.status_code
+                trials =+ 1
+            contents = response.content
         try:
             img_buffer = np.frombuffer(contents, dtype=np.dtype(dtype))
         except Exception as e:
