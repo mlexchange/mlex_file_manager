@@ -125,7 +125,7 @@ class DataProject:
         '''
         local_datasets = []
         for indx, dataset in enumerate(self.data):
-            img, _ = dataset.read_data(export='pillow')        # Get data
+            img, _ = dataset.read_data(export='pillow', resize=False)        # Get data
             new_uri = f'{filenames[indx]}'
             img.save(new_uri)                               # Save data to new path
             local_datasets.append(LocalDataset(new_uri, project=project_id))
