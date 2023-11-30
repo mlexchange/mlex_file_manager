@@ -60,14 +60,19 @@ class TiledDataset(Dataset):
                     print(response.content)
             contents = response.content
             # print(f'Response alone: {time.time()-start}', flush=True)
+            if export=='pillow':
+                image = Image.open(io.BytesIO(contents))
+                w,h = image.size
+                cropped_img = image.crop((0, 1, w, h))
+                return cropped_img, self.uri
         else:
             while status_code!=200 and trials<5:
                 response = client.context.http_client.get(f'{tiled_uri},0,:,:&format=png')
                 status_code = response.status_code
                 trials =+ 1
             contents = response.content
-        if status_code!= 200:
-            pass
+            if export=='pillow':
+                return Image.open(io.BytesIO(contents)), self.uri
         base64_data = base64.b64encode(contents).decode('utf-8')
         return f'data:image/jpeg;base64,{base64_data}', self.uri
 
