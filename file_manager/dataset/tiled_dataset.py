@@ -4,7 +4,7 @@ from PIL import Image
 from requests.auth import HTTPBasicAuth
 import requests
 
-from tiled.client import from_uri
+from tiled.client import from_uri, show_logs
 from tiled.client.node import Node
 
 from file_manager.dataset.dataset import Dataset
@@ -25,10 +25,11 @@ class TiledDataset(Dataset):
             Base64/PIL image
             Dataset URI
         '''
+        main_uri = self.uri.split('/api')[0]
         if self.api_key:
-            auth = HTTPBasicAuth('apikey', self.api_key)
+            client = from_uri(main_uri, api_key=self.api_key)
         else:
-            auth = None
+            client = from_uri(main_uri)
         # Retrieve tiled_uri and expected shape
         tiled_uri, metadata = self.uri.split('&expected_shape=')
         expected_shape, dtype = metadata.split('&dtype=')
@@ -50,43 +51,25 @@ class TiledDataset(Dataset):
             # start = time.time()
             while status_code!=200 and trials<5:
                 if len(expected_shape)==3:
-                    response = requests.get(f'{tiled_uri},:,::10,::10', auth=auth)
+                    response = client.context.http_client.get(f'{tiled_uri},0,::10,::10&format=png')
                 else:
-                    response = requests.get(f'{tiled_uri},::10,::10', auth=auth)
+                    response = client.context.http_client.get(f'{tiled_uri},::10,::10&format=png')
                 status_code = response.status_code
                 trials =+ 1
+                if status_code!= 200:
+                    print(response.content)
             contents = response.content
             # print(f'Response alone: {time.time()-start}', flush=True)
-            expected_shape[0] = expected_shape[0]//10 + (expected_shape[0] % 10 > 0)
-            expected_shape[1] = expected_shape[1]//10 + (expected_shape[1] % 10 > 0)
         else:
             while status_code!=200 and trials<5:
-                response = requests.get(tiled_uri)
+                response = client.context.http_client.get(f'{tiled_uri},0,:,:&format=png')
                 status_code = response.status_code
                 trials =+ 1
             contents = response.content
-        try:
-            img_buffer = np.frombuffer(contents, dtype=np.dtype(dtype))
-        except Exception as e:
-            print(f'Buffer error due to {e} with contents: {contents} and tiled uri {tiled_uri}', flush=True)
+        if status_code!= 200:
             pass
-        img_array = np.copy(img_buffer)
-        img_array = img_array.reshape(expected_shape)         # reshape contents accordingly
-        # Process raw data if needed
-        if np.max(img_array)>255:
-            img_array[img_array>threshold]=threshold
-            img_array = (img_array-np.min(img_array))*255/(np.max(img_array)-np.min(img_array))
-        img_array = np.squeeze(img_array.astype(np.uint8))
-        # Prepare image
-        img = Image.fromarray(img_array)
-        img = img.convert("L")
-        if export=='pillow':
-            return img, self.uri
-        rawBytes = io.BytesIO()
-        img.save(rawBytes, format="JPEG")
-        rawBytes.seek(0)
-        img = base64.b64encode(rawBytes.read())
-        return f'data:image/jpeg;base64,{img.decode("utf-8")}', self.uri
+        base64_data = base64.b64encode(contents).decode('utf-8')
+        return f'data:image/jpeg;base64,{base64_data}', self.uri
 
     @staticmethod
     def browse_data(tiled_uri, browse_format, tiled_uris=[], tiled_client=None, api_key=None, 
