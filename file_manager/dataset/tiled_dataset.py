@@ -67,7 +67,10 @@ class TiledDataset(Dataset):
                 return cropped_img, self.uri
         else:
             while status_code!=200 and trials<5:
-                response = requests.get(f'{tiled_uri},0,:,:&format=png')
+                if len(expected_shape)==3:
+                    response = requests.get(f'{tiled_uri},0,:,:&format=png')
+                else:
+                    response = requests.get(f'{tiled_uri},:,:&format=png')
                 status_code = response.status_code
                 trials =+ 1
             contents = response.content
