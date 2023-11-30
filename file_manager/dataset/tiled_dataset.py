@@ -25,11 +25,11 @@ class TiledDataset(Dataset):
             Base64/PIL image
             Dataset URI
         '''
-        main_uri = self.uri.split('/api')[0]
-        if self.api_key:
-            client = from_uri(main_uri, api_key=self.api_key)
-        else:
-            client = from_uri(main_uri)
+        # main_uri = self.uri.split('/api')[0]
+        # if self.api_key:
+        #     client = from_uri(main_uri, api_key=self.api_key)
+        # else:
+        #     client = from_uri(main_uri)
         # Retrieve tiled_uri and expected shape
         tiled_uri, metadata = self.uri.split('&expected_shape=')
         expected_shape, dtype = metadata.split('&dtype=')
@@ -51,9 +51,9 @@ class TiledDataset(Dataset):
             # start = time.time()
             while status_code!=200 and trials<5:
                 if len(expected_shape)==3:
-                    response = client.context.http_client.get(f'{tiled_uri},0,::10,::10&format=png')
+                    response = requests.get(f'{tiled_uri},0,::10,::10&format=png')
                 else:
-                    response = client.context.http_client.get(f'{tiled_uri},::10,::10&format=png')
+                    response = requests.get(f'{tiled_uri},::10,::10&format=png')
                 status_code = response.status_code
                 trials =+ 1
                 if status_code!= 200:
@@ -67,7 +67,7 @@ class TiledDataset(Dataset):
                 return cropped_img, self.uri
         else:
             while status_code!=200 and trials<5:
-                response = client.context.http_client.get(f'{tiled_uri},0,:,:&format=png')
+                response = requests.get(f'{tiled_uri},0,:,:&format=png')
                 status_code = response.status_code
                 trials =+ 1
             contents = response.content
