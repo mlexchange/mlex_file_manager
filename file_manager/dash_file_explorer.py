@@ -96,10 +96,10 @@ def create_file_explorer(max_file_size, default_tiled_uri=''):
                                 dbc.Col(
                                     dbc.InputGroup([
                                         dbc.InputGroupText('URI'), 
-                                        dbc.Input(placeholder='tiled uri', 
-                                                  value=default_tiled_uri,
-                                                  id={'base_id': 'file-manager', 
-                                                      'name': 'tiled-uri'})
+                                        dbc.Input(
+                                            placeholder='tiled uri', 
+                                            value=default_tiled_uri,
+                                            id={'base_id': 'file-manager', 'name': 'tiled-uri'})
                                     ]),
                                     width=10
                                 ),
