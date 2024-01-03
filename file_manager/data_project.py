@@ -2,6 +2,11 @@ from datetime import datetime
 from functools import partial
 from typing import List
 import time
+import re
+import pathlib
+import uuid
+import pandas as pd
+import concurrent.futures
 
 from PIL import Image
 import requests
@@ -114,21 +119,47 @@ class DataProject:
                                         'run_time': str(datetime.utcnow())}).json()['uid']
         return event_uid
     
-    def tiled_to_local_project(self, project_id, filenames):
+    @staticmethod
+    def save_tiled_locally(dataset, filename, project_id):
+        img, _ = dataset.read_data(export='pillow', resize=False)       # Get data
+        img.save(filename)                                              # Save data to new path
+        return LocalDataset(filename, project=project_id)
+    
+    def tiled_to_local_project(self, project_id, pattern = r'[/\\?%*:|"<>]'):
         '''
         Convert a tiled data project to a local project while saving each dataset to filesystem
         Args:
             project_id:     Project ID for new local data project
-            filenames:      List of target data paths for new local data project elements
+            pattern:        Pattern to replace in project_id to avoid errors in filesystem
         Returns:
             local_data_project
         '''
-        local_datasets = []
-        for indx, dataset in enumerate(self.data):
-            img, _ = dataset.read_data(export='pillow', resize=False)        # Get data
-            new_uri = f'{filenames[indx]}'
-            img.save(new_uri)                               # Save data to new path
-            local_datasets.append(LocalDataset(new_uri, project=project_id))
-        local_data_project = DataProject(data=local_datasets,
-                                         project_id=project_id)
-        return local_data_project
+        list_project_id = project_id.split(',')
+        data_info = pd.DataFrame()
+        for unit_project_id in list_project_id:
+            unit_uris = []
+            unit_indx = []
+            for indx, dataset in enumerate(self.data):
+                if dataset.uri.startswith(unit_project_id):
+                    unit_uris.append(dataset.uri)
+                    unit_indx.append(indx)
+            cleaned_project_id = re.sub(pattern, '_', unit_project_id)               # clean project_id
+            local_path = pathlib.Path(f'data/tiled_local_copy/{cleaned_project_id}')
+            if not local_path.exists():
+                uid_list = []
+                for ii in range(len(unit_uris)):
+                    uid_list.append(str(uuid.uuid4()))
+                unit_data_info = pd.DataFrame({'uri': unit_uris})
+                unit_data_info['type'] = ['tiled']*len(unit_uris)
+                unit_data_info['local_uri'] = [f'{local_path}/{uid}.tif' for uid in uid_list]
+                local_path.mkdir(parents=True)
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    local_datasets = list(executor.map(self.save_tiled_locally, 
+                                                       [self.data[i] for i in unit_indx], 
+                                                       list(unit_data_info['local_uri']), 
+                                                       [unit_project_id]*len(unit_uris)))
+                unit_data_info.to_parquet(f'{local_path}/data_info.parquet', engine='pyarrow')
+            else:
+                unit_data_info = pd.read_parquet(f'{local_path}/data_info.parquet', engine='pyarrow')
+            data_info = pd.concat([data_info, unit_data_info], ignore_index=True)
+        return data_info
