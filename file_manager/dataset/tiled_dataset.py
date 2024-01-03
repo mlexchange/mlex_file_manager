@@ -18,19 +18,13 @@ class TiledDataset(Dataset):
         self.api_key=api_key
         pass
 
-    def read_data(self, export='base64', resize=True, threshold=1100):
+    def read_data(self, export='base64', resize=True, threshold=1100, max_tries=5):
         '''
         Read data set
         Returns:
             Base64/PIL image
             Dataset URI
         '''
-        # main_uri = self.uri.split('/api')[0]
-        # if self.api_key:
-        #     client = from_uri(main_uri, api_key=self.api_key)
-        # else:
-        #     client = from_uri(main_uri)
-        # Retrieve tiled_uri and expected shape
         tiled_uri, metadata = self.uri.split('&expected_shape=')
         expected_shape, dtype = metadata.split('&dtype=')
         expected_shape = np.array(list(map(int, expected_shape.split('%2C'))))
@@ -48,25 +42,23 @@ class TiledDataset(Dataset):
         trials = 0
         # Resize if needed
         if resize:
-            # start = time.time()
-            while status_code!=200 and trials<5:
+            while status_code!=200 and trials<max_tries:
                 if len(expected_shape)==3:
-                    response = requests.get(f'{tiled_uri},0,::10,::10&format=png')
+                    response = requests.get(f'{tiled_uri},0,::5,::5&format=png')
                 else:
-                    response = requests.get(f'{tiled_uri},::10,::10&format=png')
+                    response = requests.get(f'{tiled_uri},::5,::5&format=png')
                 status_code = response.status_code
                 trials =+ 1
                 if status_code!= 200:
                     print(response.content)
             contents = response.content
-            # print(f'Response alone: {time.time()-start}', flush=True)
             if export=='pillow':
                 image = Image.open(io.BytesIO(contents))
                 w,h = image.size
                 cropped_img = image.crop((0, 1, w, h))
                 return cropped_img, self.uri
         else:
-            while status_code!=200 and trials<5:
+            while status_code!=200 and trials<max_tries:
                 if len(expected_shape)==3:
                     response = requests.get(f'{tiled_uri},0,:,:&format=png')
                 else:
