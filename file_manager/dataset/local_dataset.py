@@ -2,15 +2,14 @@ import base64, io
 from functools import reduce
 
 import glob
-import os 
-import pathlib
 from PIL import Image
 
 from file_manager.dataset.dataset import Dataset
 
 # List of allowed and not allowed formats
-FORMATS = ['**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.tif', '**/*.tiff']
-NOT_ALLOWED_FORMATS = ['**/__pycache__/**', '**/.*', 'cache/', 'cache/**/', 'cache/**', 
+FORMATS = ['**/*.[pP][nN][gG]', '**/*.[jJ][pP][gG]', '**/*.[jJ][pP][eE][gG]', '**/*.[tT][iI][fF][]',
+           '**/*.[tT][iI][fF][fF]']
+NOT_ALLOWED_FORMATS = ['**/__pycache__/**', '**/.*', 'cache/', 'cache/**/', 'cache/**',
                        'tiled_local_copy/', '**/tiled_local_copy/**', '**/tiled_local_copy/**/',
                        'mlexchange_store/**/', 'mlexchange_store/**',
                        'labelmaker_outputs/**/', 'labelmaker_outputs/**']
