@@ -3,11 +3,12 @@ from functools import reduce
 
 import glob
 from PIL import Image
+import numpy as np
 
 from file_manager.dataset.dataset import Dataset
 
 # List of allowed and not allowed formats
-FORMATS = ['**/*.[pP][nN][gG]', '**/*.[jJ][pP][gG]', '**/*.[jJ][pP][eE][gG]', '**/*.[tT][iI][fF][]',
+FORMATS = ['**/*.[pP][nN][gG]', '**/*.[jJ][pP][gG]', '**/*.[jJ][pP][eE][gG]', '**/*.[tT][iI][fF]',
            '**/*.[tT][iI][fF][fF]']
 NOT_ALLOWED_FORMATS = ['**/__pycache__/**', '**/.*', 'cache/', 'cache/**/', 'cache/**',
                        'tiled_local_copy/', '**/tiled_local_copy/**', '**/tiled_local_copy/**/',
@@ -23,7 +24,7 @@ class LocalDataset(Dataset):
         super().__init__(uri, type)
         pass
 
-    def read_data(self, export='base64', resize=True):
+    def read_data(self, export='base64', resize=True, log=False, threshold=1e-6):
         '''
         Read data set
         Returns:
@@ -32,6 +33,13 @@ class LocalDataset(Dataset):
         '''
         filename = self.uri
         img = Image.open(filename)
+        if log:
+            img = np.array(img, dtype=np.float32)
+            # Apply log(1+threshold) to the image
+            img = np.log(img+threshold)
+            # Normalize image to 0-255
+            img = ((img - np.min(img)) / (np.max(img) - np.min(img)) * 255).astype(np.uint8)
+            img = Image.fromarray(img)
         if export == 'pillow':
             return img, self.uri
         if resize:

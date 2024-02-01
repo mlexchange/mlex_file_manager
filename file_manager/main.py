@@ -3,6 +3,7 @@ import dash
 from dash import dcc, html, Input, Output, State
 import dash_bootstrap_components as dbc
 from dash.exceptions import PreventUpdate
+import dash_daq as daq
 import time
 
 from file_manager.dash_file_explorer import create_file_explorer
@@ -83,6 +84,13 @@ class FileManager():
                         fullscreen=True
                         ),
                 ], className="g-0", justify="center"),
+                dbc.Row(
+                    daq.BooleanSwitch(
+                        id={'base_id': 'file-manager', 'name': 'log-toggle'},
+                        label="Log",
+                        labelPosition="top"
+                    ),
+                ),
                 dbc.Collapse(
                     create_file_explorer(max_file_size, default_tiled_uri),
                     id={'base_id': 'file-manager', 'name': 'collapse-explorer'},
