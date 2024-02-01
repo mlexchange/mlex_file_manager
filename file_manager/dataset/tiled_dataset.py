@@ -18,9 +18,55 @@ class TiledDataset(Dataset):
         self.api_key=api_key
         pass
 
-    def read_data(self, export='base64', resize=True, threshold=1100, max_tries=5):
+    @staticmethod
+    def _process_image(image, threshold=1e-6):
+        '''
+        Process image
+        Args:
+            image:      PIL image
+        Returns:
+            PIL image
+        '''
+        image = np.array(image, dtype=np.float32)
+        image = np.log(image+threshold)
+        image = ((image - np.min(image)) / (np.max(image) - np.min(image)) * 255).astype(np.uint8)
+        return Image.fromarray(image)
+    
+    @staticmethod
+    def _get_response(tiled_uri, expected_shape, resize, max_tries):
+        '''
+        Get response from tiled URI
+        Args:
+            tiled_uri:          Tiled URI from which data should be retrieved
+            expected_shape:     Expected shape of the data
+            resize:             Resize image to 200x200, defaults to True
+            max_tries:          Maximum number of tries to retrieve data, defaults to 5
+        Returns:
+            Response content
+        '''
+        status_code = 502
+        trials = 0
+        while status_code != 200 and trials < max_tries:
+            if len(expected_shape) == 3:
+                response = requests.get(f'{tiled_uri},0,::5,::5&format=png') if resize \
+                    else requests.get(f'{tiled_uri},0,:,:&format=png')
+            else:
+                response = requests.get(f'{tiled_uri},::5,::5&format=png') if resize \
+                    else requests.get(f'{tiled_uri},:,:&format=png')
+            status_code = response.status_code
+            trials += 1
+            if status_code != 200:
+                print(response.content)
+        return response.content
+        
+    def read_data(self, export='base64', resize=True, log=False, max_tries=5):
         '''
         Read data set
+        Args:
+            export:             Export format, defaults to base64
+            resize:             Resize image to 200x200, defaults to True
+            log:                Apply log(1+x) to the image, defaults to False
+            max_tries:          Maximum number of tries to retrieve data, defaults to 5
         Returns:
             Base64/PIL image
             Dataset URI
@@ -28,48 +74,28 @@ class TiledDataset(Dataset):
         tiled_uri, metadata = self.uri.split('&expected_shape=')
         expected_shape, dtype = metadata.split('&dtype=')
         expected_shape = np.array(list(map(int, expected_shape.split('%2C'))))
-        # Validate image data
-        if len(expected_shape)==3:
-            if expected_shape[0] in [1,3,4]:          # channels first
-                expected_shape = expected_shape[[1,2,0]]
-            elif expected_shape[-1] not in [1,3,4]:   # channels last
-                raise RuntimeError(f"Not supported type of data. Tiled uri: {tiled_uri} and data \
-                                    dimension {expected_shape}")
-        elif 2>len(expected_shape) or len(expected_shape)>3:
-            raise RuntimeError(f"Not supported type of data. Tiled uri: {tiled_uri} and data \
-                               dimension {expected_shape}")
-        status_code = 502
-        trials = 0
-        # Resize if needed
-        if resize:
-            while status_code!=200 and trials<max_tries:
-                if len(expected_shape)==3:
-                    response = requests.get(f'{tiled_uri},0,::5,::5&format=png')
-                else:
-                    response = requests.get(f'{tiled_uri},::5,::5&format=png')
-                status_code = response.status_code
-                trials =+ 1
-                if status_code!= 200:
-                    print(response.content)
-            contents = response.content
-            if export=='pillow':
-                image = Image.open(io.BytesIO(contents))
-                w,h = image.size
-                cropped_img = image.crop((0, 1, w, h))
-                return cropped_img, self.uri
-        else:
-            while status_code!=200 and trials<max_tries:
-                if len(expected_shape)==3:
-                    response = requests.get(f'{tiled_uri},0,:,:&format=png')
-                else:
-                    response = requests.get(f'{tiled_uri},:,:&format=png')
-                status_code = response.status_code
-                trials =+ 1
-            contents = response.content
-            if export=='pillow':
-                return Image.open(io.BytesIO(contents)), self.uri
-        base64_data = base64.b64encode(contents).decode('utf-8')
-        return f'data:image/jpeg;base64,{base64_data}', self.uri
+
+        if len(expected_shape) == 3 and expected_shape[0] in [1,3,4]:
+            expected_shape = expected_shape[[1,2,0]]
+        elif len(expected_shape) != 2 or expected_shape[-1] not in [1,3,4]:
+            raise RuntimeError(f"Not supported type of data. Tiled uri: {tiled_uri} and data dimension {expected_shape}")
+
+        contents = self._get_response(tiled_uri, expected_shape, resize, max_tries)
+
+        if export == 'pillow':
+            image = Image.open(io.BytesIO(contents))
+            if log:
+                image = self._process_image(image)
+            return (image.crop((0, 1, *image.size)), self.uri) if resize else (image, self.uri)
+
+        if log:
+            image = self._process_image(Image.open(io.BytesIO(contents)))
+            buffered = io.BytesIO()
+            image.save(buffered, format="JPEG")
+            contents = buffered.getvalue()
+
+        contents_base64 = base64.b64encode(contents).decode('utf-8')
+        return f'data:image/jpeg;base64,{contents_base64}', self.uri
 
     @staticmethod
     def browse_data(tiled_uri, browse_format, tiled_uris=[], tiled_client=None, api_key=None, 
