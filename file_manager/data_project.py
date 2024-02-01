@@ -125,17 +125,18 @@ class DataProject:
         img.save(filename)                                              # Save data to new path
         return LocalDataset(filename, project=project_id)
     
-    def tiled_to_local_project(self, project_id, pattern = r'[/\\?%*:|"<>]'):
+    def tiled_to_local_project(self, subset=None, pattern = r'[/\\?%*:|"<>]'):
         '''
         Convert a tiled data project to a local project while saving each dataset to filesystem
         Args:
-            project_id:     Project ID for new local data project
             pattern:        Pattern to replace in project_id to avoid errors in filesystem
+            subset:         List of indices to subset the data project to download
         Returns:
             local_data_project
         '''
-        list_project_id = project_id.split(',')
+        list_project_id = self.project_id.split(',')
         data_info = pd.DataFrame()
+        start_indx = 0
         for unit_project_id in list_project_id:
             unit_uris = []
             unit_indx = []
@@ -143,23 +144,54 @@ class DataProject:
                 if dataset.uri.startswith(unit_project_id):
                     unit_uris.append(dataset.uri)
                     unit_indx.append(indx)
-            cleaned_project_id = re.sub(pattern, '_', unit_project_id)               # clean project_id
+            cleaned_project_id = re.sub(pattern, '_', unit_project_id)
             local_path = pathlib.Path(f'data/tiled_local_copy/{cleaned_project_id}')
-            if not local_path.exists():
+
+            # Check if the all the data within  is already saved locally
+            if local_path.exists() and len(unit_uris)==len(list(local_path.glob('*.tif'))):
+                unit_data_info = pd.read_parquet(f'{local_path}/data_info.parquet', engine='pyarrow')
+            else:
+                # Get subset of interest if provided
+                if subset is not None:
+                    filtered_subset = [num-start_indx for num in subset if start_indx <= num < start_indx+len(unit_uris)]
+                    unit_uris = [unit_uris[i] for i in filtered_subset]
+                    unit_indx = [unit_indx[i] for i in filtered_subset]
+                
+                # Check if the some data points are already saved locally
+                if local_path.exists() and len(unit_uris)>0:
+                    partial_data_info = pd.read_parquet(f'{local_path}/data_info.parquet', engine='pyarrow')
+                    partial_local_uris = partial_data_info['uri'].tolist()
+                    filtered = [(uri, indx) for uri, indx in zip(unit_uris, unit_indx) if uri not in partial_local_uris]
+                    if filtered:
+                        unit_uris, unit_indx = zip(*filtered)
+                    else:
+                        continue
+                else:
+                    partial_data_info = None
+
+                # Generate unique ids for each data point
                 uid_list = []
                 for ii in range(len(unit_uris)):
                     uid_list.append(str(uuid.uuid4()))
+                
+                # Initialize data_info dataframe
                 unit_data_info = pd.DataFrame({'uri': unit_uris})
                 unit_data_info['type'] = ['tiled']*len(unit_uris)
                 unit_data_info['local_uri'] = [f'{local_path}/{uid}.tif' for uid in uid_list]
-                local_path.mkdir(parents=True)
+
+                # Save data locally
+                local_path.mkdir(parents=True, exist_ok=True)
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     local_datasets = list(executor.map(self.save_tiled_locally, 
                                                        [self.data[i] for i in unit_indx], 
                                                        list(unit_data_info['local_uri']), 
                                                        [unit_project_id]*len(unit_uris)))
+
+                # Update data_info dataframe if it already existed
+                if partial_data_info is not None:
+                    unit_data_info = pd.concat([partial_data_info, unit_data_info], ignore_index=True)
                 unit_data_info.to_parquet(f'{local_path}/data_info.parquet', engine='pyarrow')
-            else:
-                unit_data_info = pd.read_parquet(f'{local_path}/data_info.parquet', engine='pyarrow')
+            
             data_info = pd.concat([data_info, unit_data_info], ignore_index=True)
+            start_indx += len(unit_uris)
         return data_info
