@@ -24,7 +24,7 @@ class LocalDataset(Dataset):
         super().__init__(uri, type)
         pass
 
-    def read_data(self, export='base64', resize=True, log=False, threshold=1e-6):
+    def read_data(self, export='base64', resize=True, log=False, threshold=1):
         '''
         Read data set
         Returns:

@@ -19,7 +19,7 @@ class TiledDataset(Dataset):
         pass
 
     @staticmethod
-    def _process_image(image, threshold=1e-6):
+    def _process_image(image, threshold=1):
         '''
         Process image
         Args:
