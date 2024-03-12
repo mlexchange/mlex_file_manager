@@ -24,7 +24,7 @@ The MLExchange File Manager supports data access through:
 
 3. Browse directories or Tiled nodes and **IMPORT** the selected files.
 
-4. [Optional] Upload data with the **Drag and Drop** option in the frontend. 
+4. [Optional] Upload data with the **Drag and Drop** option in the frontend.
 Upload either a single file or a zip file (files) through drag and drop.
 User can then browse the newly added files/folder in the path table.
 
@@ -37,7 +37,7 @@ User can then browse the newly added files/folder in the path table.
     ```
 
 2. Define your file explorer, initialize its callbacks, and set up the upload data path considering the following parameters:
-    
+
     - data_folder_root:       [str] Root folder to data directory for local loading
     - upload_folder_root:     [str] Root folder to upload directory
     - splash_uri:             [str] URI to splash-ml service
@@ -63,7 +63,7 @@ User can then browse the newly added files/folder in the path table.
 3. Incorporate the following dash components to your callbacks to load the data:
 
     - ```Input({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data')```
-        
+
         List of selected data sets, e.g. [dataset1, dataset2], where dataset1 can be a LocalDataset or TiledDataset.
     - [Optional] ```Output({'base_id': 'file-manager', 'name': 'confirm-update-data'}, 'data'),```
 
@@ -91,7 +91,7 @@ User can then browse the newly added files/folder in the path table.
 
 ## Copyright
 
-MLExchange Copyright (c) 2023, The Regents of the University of California, through Lawrence Berkeley National Laboratory (subject to receipt of any required approvals from the U.S. Dept. of Energy). All rights reserved.
+MLExchange Copyright (c) 2024, The Regents of the University of California, through Lawrence Berkeley National Laboratory (subject to receipt of any required approvals from the U.S. Dept. of Energy). All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
