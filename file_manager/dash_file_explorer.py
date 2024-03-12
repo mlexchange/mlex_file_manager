@@ -28,7 +28,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                         label="Filesystem",
                                         value="file",
                                         children=[
-                                            ######################## UPLOADING DATA ################################
+                                            ################### UPLOADING DATA ###################
                                             html.P(),
                                             dbc.Label(
                                                 "Upload a new file or a zipped folder:",
@@ -62,7 +62,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                     "margin-right": "20px",
                                                 },
                                             ),
-                                            ############################ FILE TABLE ################################
+                                            ################### FILE TABLE ###################
                                             dbc.Row(
                                                 children=[
                                                     dash_table.DataTable(
@@ -116,7 +116,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                         label="Tiled",
                                         value="tiled",
                                         children=[
-                                            ###################### TILED FOR DATA ACCESS ###########################
+                                            ################ TILED FOR DATA ACCESS ################
                                             html.P(),
                                             dbc.Label(
                                                 "Load data through Tiled:",
@@ -146,7 +146,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                     ),
                                 ],
                             ),
-                            ################## BROWSE/IMPORT DATA FORMATS ##########################
+                            ################### BROWSE/IMPORT DATA FORMATS ###################
                             dbc.Label(
                                 "Choose file formats:",
                                 className="mr-2",
@@ -279,7 +279,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                 className="g-2",
                                 style={"display": "None"},
                             ),
-                            ########################## IMPORT BUTTON ###############################
+                            ################### IMPORT BUTTON ###################
                             dbc.Row(
                                 dbc.Button(
                                     "Import",
@@ -295,7 +295,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                             ),
                         ],
                     ),
-                    ############################# CACHE ################################
+                    ################### CACHE ###################
                     dcc.Store(
                         id={"base_id": "file-manager", "name": "docker-file-paths"},
                         data=[],
