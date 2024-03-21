@@ -4,7 +4,7 @@ services:
     front-end:
         restart: "unless-stopped"
         container_name: "dash-file-manager"
-        build: 
+        build:
             context: '.'
             dockerfile: 'Dockerfile'
         environment:
