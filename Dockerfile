@@ -4,7 +4,7 @@ MAINTAINER THE MLEXCHANGE TEAM
 COPY requirements.txt requirements.txt
 
 RUN pip install --upgrade pip &&\
-    pip install git+https://github.com/taxe10/mlex_file_manager 
+    pip install git+https://github.com/mlexchange/mlex_file_manager 
 
 WORKDIR /app/work
 ENV HOME /app/work
