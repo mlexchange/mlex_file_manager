@@ -191,7 +191,7 @@ class FileManager:
         app.long_callback(
             [
                 Output(
-                    {"base_id": "file-manager", "name": "docker-file-paths"}, "data"
+                    {"base_id": "file-manager", "name": "data-project-dict"}, "data"
                 ),
                 Output({"base_id": "file-manager", "name": "tiled-error"}, "is_open"),
                 Output({"base_id": "file-manager", "name": "tabs"}, "value"),

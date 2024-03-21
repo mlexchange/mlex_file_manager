@@ -189,7 +189,7 @@ def update_thumbnail(processed_data, id):
     Output({"type": "thumbnail-card", "index": ALL}, "style"),
     Output({"type": "thumbnail-name", "index": ALL}, "children"),
     Output({"type": "processed-data-store", "index": ALL}, "data"),
-    Input({"base_id": "file-manager", "name": "docker-file-paths"}, "data"),
+    Input({"base_id": "file-manager", "name": "data-project-dict"}, "data"),
     Input("current-page", "data"),
     prevent_initial_call=True,
 )
@@ -254,7 +254,7 @@ def update_page_next(next_page, current_page, total_num_data_points):
 @app.callback(
     Output("download-data", "data"),
     Input("download-button", "n_clicks"),
-    State({"base_id": "file-manager", "name": "docker-file-paths"}, "data"),
+    State({"base_id": "file-manager", "name": "data-project-dict"}, "data"),
 )
 def download_data(n_clicks, data_project_dict):
     if n_clicks:
@@ -269,7 +269,7 @@ def download_data(n_clicks, data_project_dict):
     Output("img-slider", "max"),
     Output("img-slider", "value"),
     Output("img-label", "children"),
-    Input({"base_id": "file-manager", "name": "docker-file-paths"}, "data"),
+    Input({"base_id": "file-manager", "name": "data-project-dict"}, "data"),
     Input("img-slider", "value"),
     prevent_initial_call=True,
 )

@@ -380,7 +380,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                     ),
                     # CACHE
                     dcc.Store(
-                        id={"base_id": "file-manager", "name": "docker-file-paths"},
+                        id={"base_id": "file-manager", "name": "data-project-dict"},
                         data=[],
                     ),
                     dcc.Store(
