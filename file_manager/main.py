@@ -118,6 +118,7 @@ class FileManager:
                         id={"base_id": "file-manager", "name": "log-toggle"},
                         label="Log",
                         labelPosition="top",
+                        style={"display": "none"},
                     ),
                 ),
                 dbc.Collapse(
@@ -167,22 +168,36 @@ class FileManager:
             [
                 Input({"base_id": "file-manager", "name": "browse-format"}, "value"),
                 Input({"base_id": "file-manager", "name": "upload-data"}, "data"),
-                State({"base_id": "file-manager", "name": "tabs"}, "value"),
             ],
-        )(self._load_table)
+        )(self._load_file_table)
+        pass
+
+        app.long_callback(
+            Output({"base_id": "file-manager", "name": "tiled-table"}, "data"),
+            Output(
+                {"base_id": "file-manager", "name": "tiled-error"},
+                "is_open",
+                allow_duplicate=True,
+            ),
+            [
+                Input({"base_id": "file-manager", "name": "tiled-browse"}, "n_clicks"),
+                State({"base_id": "file-manager", "name": "tiled-uri"}, "value"),
+                State({"base_id": "file-manager", "name": "tiled-query"}, "value"),
+            ],
+            prevent_initial_call=True,
+        )(self._load_tiled_table)
         pass
 
         app.long_callback(
             [
                 Output(
-                    {"base_id": "file-manager", "name": "files-table"}, "selected_rows"
-                ),
-                Output(
                     {"base_id": "file-manager", "name": "docker-file-paths"}, "data"
                 ),
                 Output({"base_id": "file-manager", "name": "tiled-error"}, "is_open"),
                 Output({"base_id": "file-manager", "name": "tabs"}, "value"),
-                Output({"base_id": "file-manager", "name": "project-id"}, "data"),
+                Output(
+                    {"base_id": "file-manager", "name": "total-num-data-points"}, "data"
+                ),
             ],
             [
                 Input({"base_id": "file-manager", "name": "import-dir"}, "n_clicks"),
@@ -195,8 +210,12 @@ class FileManager:
                 State(
                     {"base_id": "file-manager", "name": "files-table"}, "selected_rows"
                 ),
+                State(
+                    {"base_id": "file-manager", "name": "tiled-table"}, "selected_rows"
+                ),
                 State({"base_id": "file-manager", "name": "tiled-uri"}, "value"),
                 State({"base_id": "file-manager", "name": "files-table"}, "data"),
+                State({"base_id": "file-manager", "name": "tiled-table"}, "data"),
                 State({"base_id": "file-manager", "name": "import-format"}, "value"),
             ],
         )(self._load_dataset)
@@ -252,29 +271,45 @@ class FileManager:
                 os.remove(path_to_zip_file)
         return True
 
-    def _load_table(self, browse_format, uploaded_data, tab_value):
+    def _load_file_table(self, browse_format, uploaded_data):
         """
         This callback updates the content of the file table
         Args:
             browse_format:      File extension to browse
             uploaded_data:      Flag that indicates if new data has been uploaded
-            tab_value:          Tab indicating data access method (filesystem/tiled)
         Returns:
             table_data:         Updated table data according to browsing selection
         """
-        data_project = DataProject(data=[])
-        if tab_value != "tiled":
+        data_project = DataProject(
+            data_type="file", root_uri=str(self.data_folder_root)
+        )
+        browse_data = data_project.browse_data(
+            browse_format,
+        )
+        return [{"uri": dataset.uri} for dataset in browse_data]
+
+    def _load_tiled_table(self, browse_n_clicks, tiled_uri, tiled_query):
+        """
+        This callback updates the content of the tiled table
+        Args:
+            browse_n_clicks:        Number of clicks on browse Tiled button
+            tiled_uri:              Tiled URI for data access
+            tiled_query:            Query to be applied to the Tiled URI
+        Returns:
+            table_data:             Updated table data according to browsing selection
+            tiled_warning_modal:    Open warning indicating that the connection to tiled failed
+        """
+        data_project = DataProject(
+            data_type="tiled", root_uri=tiled_uri, api_key=self.api_key
+        )
+        try:
             browse_data = data_project.browse_data(
-                tab_value,
-                browse_format,
-                tiled_uri=None,
-                dir_path=self.data_folder_root,
-                api_key=None,
-                recursive=False,
+                sub_uri_template=tiled_query,
             )
-        else:
-            browse_data = []
-        return DataProject(data=browse_data).get_table_dict()
+        except Exception as e:
+            print(f"Connection to tiled failed: {e}")
+            return dash.no_update, True
+        return [{"uri": dataset.uri} for dataset in browse_data], False
 
     def _load_dataset(
         self,
@@ -283,9 +318,11 @@ class FileManager:
         clear_data_n_clicks,
         tab_value,
         update_data,
-        rows,
+        file_rows,
+        tiled_rows,
         tiled_uri,
         files_table,
+        tiled_table,
         import_format,
     ):
         """
@@ -298,21 +335,25 @@ class FileManager:
             clear_data_n_clicks:    Number of clicks on clear data button
             tab_value:              Tab indicating data access method (filesystem/tiled)
             update_data:            Flag that indicates if the dataset can be updated
-            rows:                   Selected rows in table of files/directories/nodes
+            file_rows:              Selected rows in table of files/directories
+            tiled_rows:             Selected rows in table of tiled data
             tiled_uri:              Tiled URI for data access
             files_table:            Current values within the table of files/directories/nodes
+            tiled_table:            Current values within the table of tiled data
             import_format:          File extension to import
         Returns:
-            table_data_rows:        Updated selection of rows in table data
-            selected_files:         List of selected data sets for later analysis
+            data_project_dict:      Dictionary containing the data project
             tiled_warning_modal:    Open warning indicating that the connection to tiled failed
             tab_value:              Tab indicating data access method (filesystem/tiled)
-            project_id:             Project ID to track the project of interest
+            total_num_data_points:  Total number of data points in the data project
         """
         start = time.time()
         changed_id = dash.callback_context.triggered[0]["prop_id"]
-        data_project = DataProject(data=[])
-        project = dash.no_update
+        data_project = DataProject(
+            data_type=tab_value,
+            root_uri=str(self.data_folder_root) if tab_value == "file" else tiled_uri,
+            api_key=self.api_key,
+        )
         # prevent update according to update_data flag
         if (
             changed_id
@@ -324,99 +365,52 @@ class FileManager:
             and not update_data
         ):
             raise PreventUpdate
+
         elif "clear-data" in changed_id:
-            return dash.no_update, [], dash.no_update, dash.no_update, dash.no_update
+            return [], dash.no_update, dash.no_update, dash.no_update
+
         elif "refresh-data" in changed_id and os.path.exists(self.manager_filename):
             with open(self.manager_filename, "rb") as file:
-                contents = pickle.load(file)
-            data_project_dict = contents["data_project"]
-            data_project.init_from_dict(data_project_dict)
-            project = contents["project_id"]
-            row_indx, tab_value = self._match_table_row(
-                data_project, files_table, tab_value
+                data_project_dict = pickle.load(file)
+            data_project = DataProject.from_dict(data_project_dict)
+            print(f"Done after {time.time() - start}")
+            return data_project_dict, dash.no_update, tab_value, dash.no_update
+
+        if tab_value != "tiled" and bool(file_rows):
+            selected_rows = []
+            for row in file_rows:
+                selected_rows.append(files_table[row]["uri"])
+            data_project.datasets = data_project.browse_data(
+                import_format,
+                selected_sub_uris=selected_rows,
             )
-            print(f"Done after {time.time() - start} with project {project}")
-            return row_indx, data_project_dict, dash.no_update, tab_value, project
 
-        if tab_value != "tiled" and bool(rows):
-            for row in rows:
-                selected_row = files_table[row]["uri"]
-                data_project.data += data_project.browse_data(
-                    tab_value,
-                    import_format,
-                    tiled_uri=selected_row,
-                    dir_path=selected_row,
-                    api_key=self.api_key,
+        elif bool(tiled_rows):
+            selected_rows = []
+            for row in tiled_rows:
+                selected_rows.append(tiled_table[row]["uri"])
+            try:
+                data_project.datasets = data_project.browse_data(
+                    "",
+                    selected_sub_uris=selected_rows,
                 )
-                project = selected_row
+            except Exception as e:
+                print(f"Connection to tiled failed: {e}")
+                return [], True, tab_value, dash.no_update
+
+        if len(data_project.datasets) == 0:
+            total_num_data_points = 0
         else:
-            project = ""
-            tiled_uris = tiled_uri.split(",")
-            for tiled_uri in tiled_uris:
-                data_project.data += data_project.browse_data(
-                    tab_value, import_format, tiled_uri=tiled_uri, api_key=self.api_key
-                )
-                project += f"{tiled_uri},"
-            project = project[:-1]
+            total_num_data_points = data_project.datasets[-1].cumulative_data_count
 
-        if len(data_project.data) > 0:
+        data_project_dict = data_project.to_dict()
+
+        if len(data_project.datasets) > 0:
             with open(self.manager_filename, "wb") as file:
                 pickle.dump(
-                    {"data_project": data_project.get_dict(), "project_id": project},
+                    data_project_dict,
                     file,
                 )
-        selected_data = data_project.get_dict()
-        print(f"Done after {time.time() - start} with project {project}")
-        return dash.no_update, selected_data, dash.no_update, dash.no_update, project
 
-    def _match_table_row(
-        self, data_project, files_table, tab_value, browse_format="**/"
-    ):
-        """
-        This callback matches the selected row in the table with the data set that is being loaded (Refresh)
-        Args:
-            data_project:       DataProject object
-            files_table:        Current values within the table of files/directories/nodes
-            tab_value:          Tab indicating data access method (filesystem/tiled)
-            browse_format:      File extension to browse
-        Returns:
-            row_indx:           Index of the selected row in the table
-            tab_value:          Tab indicating data access method (filesystem/tiled)
-        """
-        first_uri = data_project.data[0].uri
-        row_indx = [
-            next(
-                (
-                    indx
-                    for indx, row in enumerate(files_table)
-                    if row["uri"] in first_uri
-                ),
-                None,
-            )
-        ]
-        if row_indx is [None]:
-            if tab_value == "tiled":
-                tab_value = "file"
-                tiled_uri = None
-            else:
-                tab_value = "tiled"
-                tiled_uri = first_uri.split("/api/v1")[0]
-            files_table = data_project.browse_data(
-                tab_value,
-                browse_format,
-                tiled_uri=tiled_uri,
-                dir_path=self.data_folder_root,
-                api_key=self.api_key,
-                recursive=False,
-            )
-            row_indx = [
-                next(
-                    (
-                        indx
-                        for indx, row in enumerate(files_table)
-                        if row.uri in first_uri
-                    ),
-                    None,
-                )
-            ]
-        return row_indx, tab_value
+        print(f"Done after {time.time() - start}", flush=True)
+        return data_project_dict, dash.no_update, dash.no_update, total_num_data_points

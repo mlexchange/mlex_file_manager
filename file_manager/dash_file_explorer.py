@@ -1,7 +1,11 @@
+import os
+
 import dash_bootstrap_components as dbc
-import dash_daq as daq
 import dash_uploader as du
 from dash import dash_table, dcc, html
+
+DEFAULT_TILED_URI = os.getenv("DEFAULT_TILED_URI", "")
+DEFAULT_TILED_QUERY = os.getenv("DEFAULT_TILED_QUERY", "")
 
 
 def create_file_explorer(max_file_size, default_tiled_uri=""):
@@ -28,7 +32,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                         label="Filesystem",
                                         value="file",
                                         children=[
-                                            ################### UPLOADING DATA ###################
+                                            # UPLOADING DATA
                                             html.P(),
                                             dbc.Label(
                                                 "Upload a new file or a zipped folder:",
@@ -62,7 +66,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                     "margin-right": "20px",
                                                 },
                                             ),
-                                            ################### FILE TABLE ###################
+                                            # FILE TABLE
                                             dbc.Row(
                                                 children=[
                                                     dash_table.DataTable(
@@ -71,10 +75,10 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                             "name": "files-table",
                                                         },
                                                         columns=[
-                                                            {
-                                                                "name": "Type",
-                                                                "id": "type",
-                                                            },
+                                                            # {
+                                                            #     "name": "Type",
+                                                            #     "id": "type",
+                                                            # },
                                                             {
                                                                 "name": "URI",
                                                                 "id": "uri",
@@ -83,7 +87,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                         data=[],
                                                         page_size=5,
                                                         hidden_columns=["type"],
-                                                        row_selectable="single",
+                                                        row_selectable="multi",
                                                         style_cell={
                                                             "padding": "0.5rem",
                                                             "textAlign": "left",
@@ -116,7 +120,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                         label="Tiled",
                                         value="tiled",
                                         children=[
-                                            ################ TILED FOR DATA ACCESS ################
+                                            # TILED FOR DATA ACCESS
                                             html.P(),
                                             dbc.Label(
                                                 "Load data through Tiled:",
@@ -125,19 +129,98 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                     "margin-bottom": "10px",
                                                 },
                                             ),
-                                            dbc.InputGroup(
+                                            dbc.Row(
                                                 [
-                                                    dbc.InputGroupText("URI"),
-                                                    dbc.Textarea(
-                                                        placeholder="tiled uri",
-                                                        value=default_tiled_uri,
-                                                        style={
-                                                            "overflowY": "scroll",
-                                                            "height": "100px",
-                                                        },
+                                                    dbc.Col(
+                                                        dbc.InputGroup(
+                                                            [
+                                                                dbc.InputGroupText(
+                                                                    "URI"
+                                                                ),
+                                                                dbc.Textarea(
+                                                                    placeholder=DEFAULT_TILED_URI,
+                                                                    value="",
+                                                                    style={
+                                                                        "height": "12px",
+                                                                    },
+                                                                    id={
+                                                                        "base_id": "file-manager",
+                                                                        "name": "tiled-uri",
+                                                                    },
+                                                                ),
+                                                            ]
+                                                        ),
+                                                        width=5,
+                                                    ),
+                                                    dbc.Col(
+                                                        dbc.InputGroup(
+                                                            [
+                                                                dbc.InputGroupText(
+                                                                    "Query"
+                                                                ),
+                                                                dbc.Textarea(
+                                                                    placeholder=DEFAULT_TILED_QUERY,
+                                                                    value="",
+                                                                    style={
+                                                                        "height": "12px",
+                                                                    },
+                                                                    id={
+                                                                        "base_id": "file-manager",
+                                                                        "name": "tiled-query",
+                                                                    },
+                                                                ),
+                                                            ]
+                                                        ),
+                                                        width=5,
+                                                    ),
+                                                    dbc.Col(
+                                                        dbc.Button(
+                                                            "Browse Tiled",
+                                                            id={
+                                                                "base_id": "file-manager",
+                                                                "name": "tiled-browse",
+                                                            },
+                                                            color="primary",
+                                                            outline=True,
+                                                            n_clicks=0,
+                                                            style={"width": "100%"},
+                                                        ),
+                                                        width=2,
+                                                    ),
+                                                ]
+                                            ),
+                                            # TILED TABLE
+                                            dbc.Row(
+                                                children=[
+                                                    dash_table.DataTable(
                                                         id={
                                                             "base_id": "file-manager",
-                                                            "name": "tiled-uri",
+                                                            "name": "tiled-table",
+                                                        },
+                                                        columns=[
+                                                            {
+                                                                "name": "URI",
+                                                                "id": "uri",
+                                                            },
+                                                        ],
+                                                        data=[],
+                                                        page_size=5,
+                                                        hidden_columns=["type"],
+                                                        row_selectable="multi",
+                                                        style_cell={
+                                                            "padding": "0.5rem",
+                                                            "textAlign": "left",
+                                                        },
+                                                        fixed_rows={"headers": False},
+                                                        css=[
+                                                            {
+                                                                "selector": ".show-hide",
+                                                                "rule": "display: none",
+                                                            }
+                                                        ],
+                                                        style_table={
+                                                            "overflowY": "auto",
+                                                            "margin-top": "10px",
                                                         },
                                                     ),
                                                 ]
@@ -146,7 +229,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                     ),
                                 ],
                             ),
-                            ################### BROWSE/IMPORT DATA FORMATS ###################
+                            # BROWSE/IMPORT DATA FORMATS
                             dbc.Label(
                                 "Choose file formats:",
                                 className="mr-2",
@@ -279,7 +362,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                 className="g-2",
                                 style={"display": "None"},
                             ),
-                            ################### IMPORT BUTTON ###################
+                            # IMPORT BUTTON
                             dbc.Row(
                                 dbc.Button(
                                     "Import",
@@ -295,7 +378,7 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                             ),
                         ],
                     ),
-                    ################### CACHE ###################
+                    # CACHE
                     dcc.Store(
                         id={"base_id": "file-manager", "name": "docker-file-paths"},
                         data=[],
@@ -313,7 +396,8 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                         data=False,
                     ),
                     dcc.Store(
-                        id={"base_id": "file-manager", "name": "project-id"}, data=""
+                        id={"base_id": "file-manager", "name": "total-num-data-points"},
+                        data=0,
                     ),
                 ]
             ),
