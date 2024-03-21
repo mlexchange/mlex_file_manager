@@ -184,6 +184,7 @@ class TiledDataset(Dataset):
         Returns:
             URI of the node
         """
+        # TODO: SUBPATH instead of QUERY
         try:
             tiled_client[f"/{node}/{query}"]
             return f"/{node}/{query}"
