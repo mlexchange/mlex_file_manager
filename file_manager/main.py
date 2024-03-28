@@ -42,7 +42,7 @@ class FileManager:
         self.max_file_size = max_file_size
         self.splash_uri = splash_uri
         self.api_key = api_key
-        self.manager_filename = f"{self.data_folder_root}/.file_manager_vars.pkl"
+        self.manager_filename = "data/.file_manager_vars.pkl"
         # Definition of the dash components for file manager
         self.file_explorer = html.Div(
             [
