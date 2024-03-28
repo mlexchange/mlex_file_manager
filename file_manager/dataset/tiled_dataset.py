@@ -7,6 +7,7 @@ import time
 import numpy as np
 from PIL import Image
 from tiled.client import from_uri
+from tiled.client.array import ArrayClient
 
 from file_manager.dataset.dataset import Dataset
 
@@ -111,7 +112,7 @@ class TiledDataset(Dataset):
         return f"data:image/png;base64,{contents_base64}"
 
     def read_data(
-        self, root_uri, indexes, export="base64", resize=True, log=False, api_key=None
+        self, root_uri, indexes, export="base64", resize=True, log=False, api_key=None,
     ):
         """
         Read data set
@@ -134,14 +135,20 @@ class TiledDataset(Dataset):
         start = time.time()
         if len(tiled_data.shape) == 4:
             block_data = tiled_data[indexes, :, ::10, ::10]
-        else:
+        elif len(tiled_data.shape) == 3:
             block_data = tiled_data[indexes, ::10, ::10]
-        print(f"Time to read {len(indexes)} images: {time.time() - start}", flush=True)
+        else:
+            block_data = tiled_data[::10, ::10]
+            block_data = np.expand_dims(block_data, axis=0)
+        print(f"Time to read {len(indexes)} images of size {block_data.shape}: {time.time() - start}", flush=True)
 
-        low = np.percentile(block_data.ravel(), 1)
-        high = np.percentile(block_data.ravel(), 99)
-        block_data = np.clip((block_data - low) / (high - low), 0, 1)
-        block_data = (block_data * 255).astype(np.uint8)
+        if block_data.dtype != np.uint8:
+            low = np.percentile(block_data.ravel(), 1)
+            high = np.percentile(block_data.ravel(), 99)
+            block_data = np.clip((block_data - low) / (high - low), 0, 1)
+            block_data = (block_data * 255).astype(np.uint8)
+        
+        print(f"Shape: {block_data.shape}", flush=True)
 
         # Check if there are 4 dimensions for a grayscale image
         if block_data.shape[1] == 1:
@@ -206,7 +213,11 @@ class TiledDataset(Dataset):
         cumulative_dataset_size = 0
         for node in nodes:
             tiled_array = tiled_client[node]
-            cumulative_dataset_size += len(tiled_array)
+            # TODO: check if there are more sub-containers
+            if type(tiled_array) is ArrayClient:
+                cumulative_dataset_size += len(tiled_array)
+            else:
+                cumulative_dataset_size += 1
             sizes.append(cumulative_dataset_size)
         return sizes
 
