@@ -112,7 +112,14 @@ class TiledDataset(Dataset):
         return f"data:image/png;base64,{contents_base64}"
 
     def read_data(
-        self, root_uri, indexes, export="base64", resize=True, log=False, api_key=None,
+        self,
+        root_uri,
+        indexes,
+        export="base64",
+        resize=True,
+        log=False,
+        api_key=None,
+        downsample=False,
     ):
         """
         Read data set
@@ -123,6 +130,7 @@ class TiledDataset(Dataset):
             resize:            Resize image to 200x200, defaults to True
             log:               Apply log(1+x) to the image, defaults to False
             api_key:           Tiled API key
+            downsample:        Downsample the image, defaults to False
         Returns:
             Base64/PIL image
             Dataset URI
@@ -133,21 +141,33 @@ class TiledDataset(Dataset):
         tiled_client = self._get_tiled_client(root_uri, api_key)
         tiled_data = tiled_client[self.uri]
         start = time.time()
-        if len(tiled_data.shape) == 4:
-            block_data = tiled_data[indexes, :, ::10, ::10]
-        elif len(tiled_data.shape) == 3:
-            block_data = tiled_data[indexes, ::10, ::10]
+        if downsample:
+            if len(tiled_data.shape) == 4:
+                block_data = tiled_data[indexes, :, ::10, ::10]
+            elif len(tiled_data.shape) == 3:
+                block_data = tiled_data[indexes, ::10, ::10]
+            else:
+                block_data = tiled_data[::10, ::10]
+                block_data = np.expand_dims(block_data, axis=0)
         else:
-            block_data = tiled_data[::10, ::10]
-            block_data = np.expand_dims(block_data, axis=0)
-        print(f"Time to read {len(indexes)} images of size {block_data.shape}: {time.time() - start}", flush=True)
+            if len(tiled_data.shape) == 4:
+                block_data = tiled_data[indexes]
+            elif len(tiled_data.shape) == 3:
+                block_data = tiled_data[indexes]
+            else:
+                block_data = tiled_data
+                block_data = np.expand_dims(block_data, axis=0)
+        print(
+            f"Time to read {len(indexes)} images of size {block_data.shape}: {time.time() - start}",
+            flush=True,
+        )
 
         if block_data.dtype != np.uint8:
             low = np.percentile(block_data.ravel(), 1)
             high = np.percentile(block_data.ravel(), 99)
             block_data = np.clip((block_data - low) / (high - low), 0, 1)
             block_data = (block_data * 255).astype(np.uint8)
-        
+
         print(f"Shape: {block_data.shape}", flush=True)
 
         # Check if there are 4 dimensions for a grayscale image
@@ -178,7 +198,10 @@ class TiledDataset(Dataset):
         Returns:
             List of tiled URIs
         """
-        return [f"{root_uri}{self.uri}?slice={index}" for index in indexes]
+        if len(indexes) > 1:
+            return [f"{root_uri}{self.uri}?slice={index}" for index in indexes]
+        else:
+            return [f"{root_uri}{self.uri}"]
 
     @staticmethod
     def _check_node(tiled_client, query, node):
@@ -215,7 +238,11 @@ class TiledDataset(Dataset):
             tiled_array = tiled_client[node]
             # TODO: check if there are more sub-containers
             if type(tiled_array) is ArrayClient:
-                cumulative_dataset_size += len(tiled_array)
+                array_shape = tiled_array.shape
+                if len(array_shape) == 2:
+                    cumulative_dataset_size += 1
+                else:
+                    cumulative_dataset_size += array_shape[0]
             else:
                 cumulative_dataset_size += 1
             sizes.append(cumulative_dataset_size)
