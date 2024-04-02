@@ -67,6 +67,17 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                 },
                                             ),
                                             # FILE TABLE
+                                            dbc.Button(
+                                                "Select all",
+                                                id={
+                                                    "base_id": "file-manager",
+                                                    "name": "select-all-files",
+                                                },
+                                                n_clicks=0,
+                                                color="primary",
+                                                outline=True,
+                                                style={"margin-top": "10px"},
+                                            ),
                                             dbc.Row(
                                                 children=[
                                                     dash_table.DataTable(
@@ -75,10 +86,6 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                             "name": "files-table",
                                                         },
                                                         columns=[
-                                                            # {
-                                                            #     "name": "Type",
-                                                            #     "id": "type",
-                                                            # },
                                                             {
                                                                 "name": "URI",
                                                                 "id": "uri",
@@ -109,7 +116,6 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                         ],
                                                         style_table={
                                                             "overflowY": "auto",
-                                                            "margin-top": "10px",
                                                         },
                                                     ),
                                                 ]
@@ -190,6 +196,17 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                 ]
                                             ),
                                             # TILED TABLE
+                                            dbc.Button(
+                                                "Select all",
+                                                id={
+                                                    "base_id": "file-manager",
+                                                    "name": "select-all-tiled",
+                                                },
+                                                n_clicks=0,
+                                                color="primary",
+                                                outline=True,
+                                                style={"margin-top": "10px"},
+                                            ),
                                             dbc.Row(
                                                 children=[
                                                     dash_table.DataTable(
@@ -220,7 +237,6 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                         ],
                                                         style_table={
                                                             "overflowY": "auto",
-                                                            "margin-top": "10px",
                                                         },
                                                     ),
                                                 ]

@@ -188,6 +188,30 @@ class FileManager:
         )(self._load_tiled_table)
         pass
 
+        app.callback(
+            Output({"base_id": "file-manager", "name": "files-table"}, "selected_rows"),
+            [
+                Input({"base_id": "file-manager", "name": "files-table"}, "data"),
+                Input(
+                    {"base_id": "file-manager", "name": "select-all-files"}, "n_clicks"
+                ),
+            ],
+            prevent_initial_call=True,
+        )(self._select_all)
+        pass
+
+        app.callback(
+            Output({"base_id": "file-manager", "name": "tiled-table"}, "selected_rows"),
+            [
+                Input({"base_id": "file-manager", "name": "tiled-table"}, "data"),
+                Input(
+                    {"base_id": "file-manager", "name": "select-all-tiled"}, "n_clicks"
+                ),
+            ],
+            prevent_initial_call=True,
+        )(self._select_all)
+        pass
+
         app.long_callback(
             [
                 Output(
@@ -310,6 +334,19 @@ class FileManager:
             print(f"Connection to tiled failed: {e}")
             return dash.no_update, True
         return [{"uri": dataset.uri} for dataset in browse_data], False
+
+    def _select_all(self, table_data, select_all_n_clicks):
+        """
+        This callback selects all rows in the table
+        Args:
+            table_data:             Current values within the table
+            select_all_n_clicks:    Number of clicks on select all button
+        Returns:
+            selected_rows:          List of selected rows
+        """
+        if select_all_n_clicks:
+            return list(range(len(table_data)))
+        return []
 
     def _load_dataset(
         self,
