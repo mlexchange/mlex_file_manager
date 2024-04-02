@@ -223,9 +223,9 @@ class FileDataset(Dataset):
 
         if selected_sub_uris == [""]:
             return (
-                filenames_per_uri[0],
-                [0] * len(filenames_per_uri[0]),
-                [[]] * len(filenames_per_uri[0]),
+                filenames_per_uri[0] if len(filenames_per_uri) > 0 else [],
+                [0] * len(filenames_per_uri[0]) if len(filenames_per_uri) > 0 else [],
+                [[]] * len(filenames_per_uri[0]) if len(filenames_per_uri) > 0 else [],
             )
         else:
             return selected_sub_uris, cumulative_data_counts, filenames_per_uri
