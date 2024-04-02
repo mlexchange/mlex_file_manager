@@ -1,5 +1,4 @@
 import os
-import pathlib
 import time
 
 import dash
@@ -15,8 +14,8 @@ from file_manager.data_project import DataProject
 from file_manager.main import FileManager
 from plot_utils import draw_rows
 
-DATA_PATH = pathlib.Path.home() / "Documents" / "Data"
-UPLOAD_FOLDER_ROOT = DATA_PATH / "upload"
+READ_DIR = "data"
+UPLOAD_FOLDER_ROOT = "data/upload"
 SPLASH_URL = os.environ.get("SPLASH_URL", "http://splash:80/api/v0")
 TILED_KEY = os.environ.get("TILED_KEY", "")
 NUM_ROWS = 3
@@ -42,7 +41,7 @@ memoize_cache.init_app(app.server)
 
 # SETUP FILE MANAGER
 dash_file_explorer = FileManager(
-    DATA_PATH,
+    READ_DIR,
     UPLOAD_FOLDER_ROOT,
     open_explorer=True,
     api_key=TILED_KEY,
