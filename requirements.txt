@@ -6,7 +6,7 @@ dash-uploader==0.6.0
 flask==3.0.0
 numpy>=1.19.5
 pandas
-Pillow==8.3.2
+Pillow #==8.3.2
 requests==2.26.0
 tiled[client]==0.1.0a107
 werkzeug>=2.2.3
