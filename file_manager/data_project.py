@@ -2,6 +2,7 @@ import bisect
 import hashlib
 import os
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 import numpy as np
@@ -100,19 +101,36 @@ class DataProject:
 
         images = []
         uris = []
-        for dataset_index, image_indices in dataset_indices.items():
-            batch_images, batch_uris = self.datasets[dataset_index].read_data(
-                self.root_uri,
-                image_indices,
-                export=export,
-                resize=resize,
-                log=log,
-                api_key=self.api_key,
-            )
-            images.extend(batch_images)
-            uris.extend(batch_uris)
+
+        tasks = [
+            (dataset_index, image_indices, export, resize, log, self.api_key)
+            for dataset_index, image_indices in dataset_indices.items()
+        ]
+
+        # Use ThreadPoolExecutor to run tasks in parallel
+        with ThreadPoolExecutor() as executor:
+            future_to_dataset = {
+                executor.submit(self.read_dataset, task): task[0] for task in tasks
+            }
+
+            for future in as_completed(future_to_dataset):
+                dataset_index = future_to_dataset[future]
+                try:
+                    batch_images, batch_uris = future.result()
+                    images.extend(batch_images)
+                    uris.extend(batch_uris)
+                except Exception as exc:
+                    print(
+                        f"Dataset index {dataset_index} generated an exception: {exc}"
+                    )
 
         return [images[i] for i in sorted_indices], [uris[i] for i in sorted_indices]
+
+    def read_dataset(self, args):
+        dataset_index, image_indices, export, resize, log, api_key = args
+        return self.datasets[dataset_index].read_data(
+            self.root_uri, image_indices, export, resize, log, api_key
+        )
 
     def browse_data(
         self,
