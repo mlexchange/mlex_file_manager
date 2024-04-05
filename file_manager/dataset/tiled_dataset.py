@@ -2,7 +2,6 @@ import base64
 import concurrent.futures
 import io
 import os
-import time
 
 import numpy as np
 from PIL import Image
@@ -10,6 +9,9 @@ from tiled.client import from_uri
 from tiled.client.array import ArrayClient
 
 from file_manager.dataset.dataset import Dataset
+
+# import time
+
 
 # Check if a static tiled client has been set
 STATIC_TILED_URI = os.getenv("STATIC_TILED_URI", None)
@@ -140,7 +142,7 @@ class TiledDataset(Dataset):
 
         tiled_client = self._get_tiled_client(root_uri, api_key)
         tiled_data = tiled_client[self.uri]
-        start = time.time()
+        # start = time.time()
         if downsample:
             if len(tiled_data.shape) == 4:
                 block_data = tiled_data[indexes, :, ::10, ::10]
@@ -157,10 +159,10 @@ class TiledDataset(Dataset):
             else:
                 block_data = tiled_data
                 block_data = np.expand_dims(block_data, axis=0)
-        print(
-            f"Time to read {len(indexes)} images of size {block_data.shape}: {time.time() - start}",
-            flush=True,
-        )
+        # print(
+        #     f"Time to read {len(indexes)} images of size {block_data.shape}: {time.time() - start}",
+        #     flush=True,
+        # )
 
         if block_data.dtype != np.uint8:
             low = np.percentile(block_data.ravel(), 1)
@@ -168,7 +170,7 @@ class TiledDataset(Dataset):
             block_data = np.clip((block_data - low) / (high - low), 0, 1)
             block_data = (block_data * 255).astype(np.uint8)
 
-        print(f"Shape: {block_data.shape}", flush=True)
+        # print(f"Shape: {block_data.shape}", flush=True)
 
         # Check if there are 4 dimensions for a grayscale image
         if block_data.shape[1] == 1:
