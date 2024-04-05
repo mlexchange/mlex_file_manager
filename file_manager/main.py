@@ -18,7 +18,7 @@ class FileManager:
     def __init__(
         self,
         data_folder_root,
-        upload_folder_root,
+        upload_folder_root=None,
         splash_uri="http://splash:80/api/v0",
         max_file_size=60000,
         open_explorer=True,
@@ -42,7 +42,7 @@ class FileManager:
         self.max_file_size = max_file_size
         self.splash_uri = splash_uri
         self.api_key = api_key
-        self.manager_filename = "data/.file_manager_vars.pkl"
+        self.manager_filename = ".file_manager_vars.pkl"
         # Definition of the dash components for file manager
         self.file_explorer = html.Div(
             [
@@ -122,7 +122,9 @@ class FileManager:
                     ),
                 ),
                 dbc.Collapse(
-                    create_file_explorer(max_file_size, default_tiled_uri),
+                    create_file_explorer(
+                        max_file_size, default_tiled_uri, self.upload_folder_root
+                    ),
                     id={"base_id": "file-manager", "name": "collapse-explorer"},
                     is_open=open_explorer,
                 ),
