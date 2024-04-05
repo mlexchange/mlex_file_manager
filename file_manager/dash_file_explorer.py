@@ -8,7 +8,7 @@ DEFAULT_TILED_URI = os.getenv("DEFAULT_TILED_URI", "")
 DEFAULT_TILED_QUERY = os.getenv("DEFAULT_TILED_QUERY", "")
 
 
-def create_file_explorer(max_file_size, default_tiled_uri=""):
+def create_file_explorer(max_file_size, default_tiled_uri="", upload_folder_root=None):
     """
     Creates the dash components for the file explorer
     Args:
@@ -17,6 +17,17 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
     Returns:
         file_explorer:      HTML.DIV with all the corresponding components of the file explorer
     """
+    if upload_folder_root is None:
+        upload_style = {"display": "None"}
+    else:
+        upload_style = {
+            "textAlign": "center",
+            "width": "100%",
+            "padding": "5px",
+            "display": "inline-block",
+            "margin-bottom": "10px",
+            "margin-right": "20px",
+        }
     file_explorer = html.Div(
         [
             dbc.Card(
@@ -34,15 +45,15 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                         children=[
                                             # UPLOADING DATA
                                             html.P(),
-                                            dbc.Label(
-                                                "Upload a new file or a zipped folder:",
-                                                style={
-                                                    "margin-right": "10px",
-                                                    "margin-bottom": "10px",
-                                                },
-                                            ),
                                             html.Div(
                                                 [
+                                                    dbc.Label(
+                                                        "Upload a new file or a zipped folder:",
+                                                        style={
+                                                            "margin-right": "10px",
+                                                            "margin-bottom": "10px",
+                                                        },
+                                                    ),
                                                     du.Upload(
                                                         id={
                                                             "base_id": "file-manager",
@@ -55,16 +66,9 @@ def create_file_explorer(max_file_size, default_tiled_uri=""):
                                                             "minHeight": 1,
                                                             "lineHeight": 1,
                                                         },
-                                                    )
+                                                    ),
                                                 ],
-                                                style={
-                                                    "textAlign": "center",
-                                                    "width": "100%",
-                                                    "padding": "5px",
-                                                    "display": "inline-block",
-                                                    "margin-bottom": "10px",
-                                                    "margin-right": "20px",
-                                                },
+                                                style=upload_style,
                                             ),
                                             # FILE TABLE
                                             dbc.Button(
