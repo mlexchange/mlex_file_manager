@@ -8,7 +8,7 @@ DEFAULT_TILED_URI = os.getenv("DEFAULT_TILED_URI", "")
 DEFAULT_TILED_QUERY = os.getenv("DEFAULT_TILED_QUERY", "")
 
 
-def create_file_explorer(max_file_size, default_tiled_uri="", upload_folder_root=None):
+def create_file_explorer(max_file_size, upload_folder_root=None):
     """
     Creates the dash components for the file explorer
     Args:
@@ -149,7 +149,7 @@ def create_file_explorer(max_file_size, default_tiled_uri="", upload_folder_root
                                                                 ),
                                                                 dbc.Textarea(
                                                                     placeholder=DEFAULT_TILED_URI,
-                                                                    value="",
+                                                                    value=DEFAULT_TILED_URI,
                                                                     style={
                                                                         "height": "12px",
                                                                     },
@@ -170,7 +170,7 @@ def create_file_explorer(max_file_size, default_tiled_uri="", upload_folder_root
                                                                 ),
                                                                 dbc.Textarea(
                                                                     placeholder=DEFAULT_TILED_QUERY,
-                                                                    value="",
+                                                                    value=DEFAULT_TILED_QUERY,
                                                                     style={
                                                                         "height": "12px",
                                                                     },
