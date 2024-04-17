@@ -4,6 +4,7 @@ import os
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from itertools import chain
 
 import numpy as np
 import requests
@@ -75,7 +76,9 @@ class DataProject:
             project_id=data_project_dict["project_id"],
         )
 
-    def read_datasets(self, indices, export="base64", resize=True, log=False):
+    def read_datasets(
+        self, indices, export="base64", resize=True, log=False, just_uri=False
+    ):
         """
         Get datasets at specific indices
         Args:
@@ -83,6 +86,7 @@ class DataProject:
             export:         Export format of the data
             resize:         Resize image to 200x200, defaults to True
             log:            Take logarithm of the data, defaults to False
+            just_uri:       Return only the URIs, defaults to False
         Returns:
             List of datasets
         """
@@ -101,6 +105,7 @@ class DataProject:
 
         images = []
         uris = []
+        thread_indexes = []
 
         tasks = [
             (dataset_index, image_indices, export, resize, log, self.api_key)
@@ -110,27 +115,54 @@ class DataProject:
         # Use ThreadPoolExecutor to run tasks in parallel
         with ThreadPoolExecutor() as executor:
             future_to_dataset = {
-                executor.submit(self.read_dataset, task): task[0] for task in tasks
+                executor.submit(self.read_dataset, task, just_uri=just_uri): index
+                for index, task in enumerate(tasks)
             }
 
             for future in as_completed(future_to_dataset):
-                dataset_index = future_to_dataset[future]
+                thread_index = future_to_dataset[future]
                 try:
-                    batch_images, batch_uris = future.result()
-                    images.extend(batch_images)
-                    uris.extend(batch_uris)
+                    if just_uri:
+                        batch_uris = future.result()
+                        uris.append(batch_uris)
+                    else:
+                        batch_images, batch_uris = future.result()
+                        images.append(batch_images)
+                        uris.append(batch_uris)
                 except Exception as exc:
-                    print(
-                        f"Dataset index {dataset_index} generated an exception: {exc}"
-                    )
+                    print(f"Thread index {thread_index} generated an exception: {exc}")
+                thread_indexes.append(thread_index)
 
-        return [images[i] for i in sorted_indices], [uris[i] for i in sorted_indices]
+        ordered_uris = [uris[i] for i in thread_indexes]
+        ordered_uris = list(chain.from_iterable(ordered_uris))
+        if just_uri:
+            return [ordered_uris[i] for i in sorted_indices]
 
-    def read_dataset(self, args):
+        ordered_images = [images[i] for i in thread_indexes]
+        ordered_images = list(chain.from_iterable(ordered_images))
+        return [ordered_images[i] for i in sorted_indices], [
+            ordered_uris[i] for i in sorted_indices
+        ]
+
+    def read_dataset(self, args, just_uri=False):
         dataset_index, image_indices, export, resize, log, api_key = args
         return self.datasets[dataset_index].read_data(
-            self.root_uri, image_indices, export, resize, log, api_key
+            self.root_uri,
+            image_indices,
+            export,
+            resize,
+            log,
+            api_key,
+            just_uri=just_uri,
         )
+
+    def get_index(self, uri):
+        cum_points = 0
+        for dataset in self.datasets:
+            if dataset.uri in uri:
+                return cum_points + dataset.get_uri_index(uri.split(self.root_uri)[-1])
+            cum_points += dataset.cumulative_data_count
+        return None
 
     def browse_data(
         self,

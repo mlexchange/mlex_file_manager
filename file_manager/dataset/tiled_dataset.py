@@ -76,10 +76,7 @@ class TiledDataset(Dataset):
         if static_tiled_client:
             return static_tiled_client
         else:
-            if api_key:
-                client = from_uri(tiled_uri, api_key=api_key)
-            else:
-                client = from_uri(tiled_uri)
+            client = from_uri(tiled_uri, api_key=api_key)
             return client
 
     @staticmethod
@@ -122,6 +119,7 @@ class TiledDataset(Dataset):
         log=False,
         api_key=None,
         downsample=False,
+        just_uri=False,
     ):
         """
         Read data set
@@ -133,6 +131,7 @@ class TiledDataset(Dataset):
             log:               Apply log(1+x) to the image, defaults to False
             api_key:           Tiled API key
             downsample:        Downsample the image, defaults to False
+            just_uri:          Return only the uri, defaults to False
         Returns:
             Base64/PIL image
             Dataset URI
@@ -140,9 +139,12 @@ class TiledDataset(Dataset):
         if isinstance(indexes, int):
             indexes = [indexes]
 
+        tiled_uris = self.get_tiled_uris(root_uri, indexes)
+        if just_uri:
+            return tiled_uris
+
         tiled_client = self._get_tiled_client(root_uri, api_key)
         tiled_data = tiled_client[self.uri]
-        # start = time.time()
         if downsample:
             if len(tiled_data.shape) == 4:
                 block_data = tiled_data[indexes, :, ::10, ::10]
@@ -159,18 +161,12 @@ class TiledDataset(Dataset):
             else:
                 block_data = tiled_data
                 block_data = np.expand_dims(block_data, axis=0)
-        # print(
-        #     f"Time to read {len(indexes)} images of size {block_data.shape}: {time.time() - start}",
-        #     flush=True,
-        # )
 
         if block_data.dtype != np.uint8:
             low = np.percentile(block_data.ravel(), 1)
             high = np.percentile(block_data.ravel(), 99)
             block_data = np.clip((block_data - low) / (high - low), 0, 1)
             block_data = (block_data * 255).astype(np.uint8)
-
-        # print(f"Shape: {block_data.shape}", flush=True)
 
         # Check if there are 4 dimensions for a grayscale image
         if block_data.shape[1] == 1:
@@ -187,8 +183,6 @@ class TiledDataset(Dataset):
                     [export] * len(indexes),
                 )
             )
-
-        tiled_uris = self.get_tiled_uris(root_uri, indexes)
         return data, tiled_uris
 
     def get_tiled_uris(self, root_uri, indexes):
@@ -204,6 +198,16 @@ class TiledDataset(Dataset):
             return [f"{root_uri}{self.uri}?slice={index}" for index in indexes]
         else:
             return [f"{root_uri}{self.uri}"]
+
+    def get_uri_index(self, uri):
+        """
+        Get index of the URI
+        Args:
+            uri:          URI of the image
+        Returns:
+            Index of the URI
+        """
+        return int(uri.split("slice=")[-1])
 
     @staticmethod
     def _check_node(tiled_client, query, node):
