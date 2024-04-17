@@ -19,11 +19,9 @@ class FileManager:
         self,
         data_folder_root,
         upload_folder_root=None,
-        splash_uri="http://splash:80/api/v0",
         max_file_size=60000,
         open_explorer=True,
         api_key=None,
-        default_tiled_uri="",
     ):
         """
         FileManager creates a dash file explorer that supports: (1) local file reading, and (2)
@@ -31,16 +29,13 @@ class FileManager:
         Args:
             data_folder_root:       [str] Root folder to data directory for local loading
             upload_folder_root:     [str] Root folder to upload directory
-            splash_uri:             [str] URI to splash-ml service
             max_file_size:          [int] Maximum file size for uploaded data, defaults to 60000
             open_explorer:          [bool] Open/close the file explorer at start up
             api_key:                [str] Tiled API key
-            default_tiled_uri:      [str] Default Tiled URI to be displayed in file manager
         """
         self.data_folder_root = data_folder_root
         self.upload_folder_root = upload_folder_root
         self.max_file_size = max_file_size
-        self.splash_uri = splash_uri
         self.api_key = api_key
         self.manager_filename = ".file_manager_vars.pkl"
         # Definition of the dash components for file manager
@@ -122,9 +117,7 @@ class FileManager:
                     ),
                 ),
                 dbc.Collapse(
-                    create_file_explorer(
-                        max_file_size, default_tiled_uri, self.upload_folder_root
-                    ),
+                    create_file_explorer(max_file_size, self.upload_folder_root),
                     id={"base_id": "file-manager", "name": "collapse-explorer"},
                     is_open=open_explorer,
                 ),
