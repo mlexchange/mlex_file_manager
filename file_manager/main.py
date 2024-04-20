@@ -406,7 +406,12 @@ class FileManager:
                 data_project_dict = pickle.load(file)
             data_project = DataProject.from_dict(data_project_dict)
             print(f"Done after {time.time() - start}")
-            return data_project_dict, dash.no_update, tab_value, dash.no_update
+            return (
+                data_project_dict,
+                dash.no_update,
+                tab_value,
+                data_project.datasets[-1].cumulative_data_count,
+            )
 
         if tab_value != "tiled" and bool(file_rows):
             selected_rows = []
