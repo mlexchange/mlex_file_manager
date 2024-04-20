@@ -4,6 +4,7 @@ import os
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from functools import partial
 from itertools import chain
 
 import numpy as np
@@ -236,7 +237,7 @@ class DataProject:
         """
         return hashlib.new(hash_function, uri.encode(("utf-8"))).hexdigest()
 
-    def check_if_data_downloaded(self, indexes):
+    def check_if_data_downloaded(self, indexes, root_dir):
         prev_data_count = 0
         for dataset in self.datasets:
             cum_data_count = dataset.cumulative_data_count
@@ -250,24 +251,44 @@ class DataProject:
             tiled_uris = dataset.get_tiled_uris(self.root_uri, subset)
             for uri in tiled_uris:
                 hashed_uri = self.hash_tiled_uri(uri)
-                file_path = os.path.join("data/tiled_local_copy", hashed_uri + ".tif")
+                file_path = os.path.join(
+                    f"{root_dir}/tiled_local_copy", hashed_uri + ".tif"
+                )
                 if os.path.isfile(file_path):
                     indexes.remove(subset[tiled_uris.index(uri)])
         return indexes
 
-    def tiled_to_local_project(self, indexes=None):
+    def _save_data_content(self, data_content, data_uri, root_dir):
+        filename = self.hash_tiled_uri(data_uri)
+        data_content.save(f"{root_dir}/tiled_local_copy/{filename}.tif")
+        print(f"{root_dir}/tiled_local_copy/{filename}.tif", flush=True)
+        pass
+
+    def tiled_to_local_project(self, root_dir, indexes=None):
         """
         Convert a tiled data project to a local project while saving each dataset to filesystem
         Args:
             pattern:        Pattern to replace in project_id to avoid errors in filesystem
             indexes:        List of indices to download
         """
-        filtered_indexes = self.check_if_data_downloaded(indexes)
+        os.makedirs(f"{root_dir}/tiled_local_copy", exist_ok=True)
+        if indexes is None:
+            indexes = list(range(self.datasets[-1].cumulative_data_count))
+        filtered_indexes = self.check_if_data_downloaded(indexes, root_dir)
         if len(filtered_indexes) > 0:
             data_contents, data_uris = self.read_datasets(
                 filtered_indexes, export="pillow", resize=False, log=False
             )
-            for data_content, data_uri in zip(data_contents, data_uris):
-                filename = self.hash_tiled_uri(data_uri)
-                data_content.save(f"data/tiled_local_copy/{filename}.tif")
-        pass
+            with ThreadPoolExecutor() as executor:
+                list(
+                    executor.map(
+                        partial(self._save_data_content, root_dir=root_dir),
+                        data_contents,
+                        data_uris,
+                    )
+                )
+        # Return list of URIs
+        uri_list = []
+        for dataset in self.datasets:
+            uri_list.extend(dataset.get_tiled_uris(self.root_uri, indexes))
+        return uri_list
