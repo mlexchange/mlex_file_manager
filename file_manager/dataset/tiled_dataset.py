@@ -194,10 +194,13 @@ class TiledDataset(Dataset):
         Returns:
             List of tiled URIs
         """
+        tiled_client = self._get_tiled_client(root_uri)
+        base_tiled_uri = tiled_client[self.uri].uri
         if len(indexes) > 1:
-            return [f"{root_uri}{self.uri}?slice={index}" for index in indexes]
+            base_tiled_uri.replace("/metadata/", "/array/full/")
+            return [f"{base_tiled_uri}?slice={index}" for index in indexes]
         else:
-            return [f"{root_uri}{self.uri}"]
+            return [base_tiled_uri]
 
     def get_uri_index(self, uri):
         """
