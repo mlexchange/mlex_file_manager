@@ -289,14 +289,11 @@ class DataProject:
         # Return list of URIs
         uri_list = []
         for dataset in self.datasets:
-            print(f"indices: {indices}", flush=True)
             tiled_uris = dataset.get_tiled_uris(self.root_uri, indices)
-            print(f"Tiled URIs: {tiled_uris}", flush=True)
             uri_list.extend(
                 [
                     f"{root_dir}/tiled_local_copy/{self.hash_tiled_uri(tiled_uri)}.tif"
                     for tiled_uri in tiled_uris
                 ]
             )
-        print(f"URI List: {uri_list}", flush=True)
         return uri_list
