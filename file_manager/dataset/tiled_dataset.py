@@ -196,7 +196,7 @@ class TiledDataset(Dataset):
         """
         tiled_client = self._get_tiled_client(root_uri)
         base_tiled_uri = tiled_client[self.uri].uri
-        if len(indexes) > 1:
+        if tiled_client[self.uri].shape[0] > 1:
             base_tiled_uri.replace("/metadata/", "/array/full/")
             return [f"{base_tiled_uri}?slice={index}" for index in indexes]
         else:
