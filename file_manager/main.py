@@ -392,16 +392,17 @@ class FileManager:
             in [
                 '{"base_id":"file-manager","name":"clear-data"}.n_clicks',
                 '{"base_id":"file-manager","name":"refresh-data"}.n_clicks',
-                '{"base_id": "file-manager", "name": "import-dir"}.n_clicks',
+                '{"base_id":"file-manager","name":"import-dir"}.n_clicks',
             ]
             and not update_data
         ):
             raise PreventUpdate
 
         elif "clear-data" in changed_id:
-            return [], dash.no_update, dash.no_update, dash.no_update
+            return {}, dash.no_update, dash.no_update, dash.no_update
 
         elif "refresh-data" in changed_id and os.path.exists(self.manager_filename):
+            print("Refreshing data", flush=True)
             with open(self.manager_filename, "rb") as file:
                 data_project_dict = pickle.load(file)
             data_project = DataProject.from_dict(data_project_dict)
