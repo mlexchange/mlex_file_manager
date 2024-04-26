@@ -114,7 +114,6 @@ class FileDataset(Dataset):
         export="base64",
         resize=True,
         log=False,
-        max_workers=8,
         just_uri=False,
         **kwargs,
     ):
@@ -126,7 +125,6 @@ class FileDataset(Dataset):
             export:            Export format, defaults to base64
             resize:            Resize images, defaults to True
             log:               Apply log to the images, defaults to False
-            max_workers:       Maximum number of workers, defaults to 8
             just_uri:          Return only the uri, defaults to False
         Returns:
             Base64/PIL image
@@ -145,7 +143,7 @@ class FileDataset(Dataset):
 
         thread_indexes = []
         # Use ThreadPoolExecutor to read files in parallel
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=8) as executor:
             future_to_index = {
                 executor.submit(
                     self._read_data_point,
