@@ -209,23 +209,20 @@ class TiledDataset(Dataset):
         """
         return int(uri.split("slice=")[-1])
 
-    @staticmethod
-    def _check_node(tiled_client, query, node):
+    def _check_node(self, tiled_client, sub_uri, node):
         """
-        Checks if the query exists in the node and returns the URI
+        Checks if the sub_uri exists in the node and returns the URI
         Args:
             tiled_client:       Current tiled client, which is used when the method is run
-            query:              Query to filter the data
+            sub_uri:           sub_uri to filter the data
             node:               Node to process
         Returns:
             URI of the node
         """
-        # TODO: SUBPATH instead of QUERY
         try:
-            tiled_client[f"/{node}/{query}"]
-            return f"/{node}/{query}"
-        except Exception as e:
-            print(e, flush=True)
+            tiled_client[f"/{node}/{sub_uri}"]
+            return f"/{node}/{sub_uri}"
+        except Exception:
             return None
 
     @staticmethod
