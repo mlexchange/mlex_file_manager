@@ -17,10 +17,7 @@ from file_manager.dataset.dataset import Dataset
 STATIC_TILED_URI = os.getenv("STATIC_TILED_URI", None)
 STATIC_TILED_API_KEY = os.getenv("STATIC_TILED_API_KEY", None)
 if STATIC_TILED_URI:
-    if STATIC_TILED_API_KEY:
-        STATIC_TILED_CLIENT = from_uri(STATIC_TILED_URI, api_key=STATIC_TILED_API_KEY)
-    else:
-        STATIC_TILED_CLIENT = from_uri(STATIC_TILED_URI)
+    STATIC_TILED_CLIENT = from_uri(STATIC_TILED_URI, api_key=STATIC_TILED_API_KEY)
 else:
     STATIC_TILED_CLIENT = None
 
