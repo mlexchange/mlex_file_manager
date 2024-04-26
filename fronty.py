@@ -1,10 +1,10 @@
+import logging
 import os
 import time
 
 import dash
 import dash_bootstrap_components as dbc
 import dash_daq as daq
-import dash_uploader as du
 import diskcache
 from dash import ALL, MATCH, ClientsideFunction, Input, Output, State, dcc, html
 from dash.long_callback import DiskcacheLongCallbackManager
@@ -14,15 +14,18 @@ from file_manager.data_project import DataProject
 from file_manager.main import FileManager
 from plot_utils import draw_rows
 
-READ_DIR = "data"
-UPLOAD_FOLDER_ROOT = "data/upload"
+DATA_DIR = os.environ.get("DATA_DIR", "/data")
 SPLASH_URL = os.environ.get("SPLASH_URL", "http://splash:80/api/v0")
 TILED_KEY = os.environ.get("TILED_KEY", "")
 NUM_ROWS = 3
 NUM_COLS = 6
 TIMEOUT = 60
 
-# SETUP DASH APP
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Set up caching
 cache = diskcache.Cache("./cache")
 long_callback_manager = DiskcacheLongCallbackManager(cache)
 memoize_cache = Cache(config={"CACHE_TYPE": "filesystem", "CACHE_DIR": "./cache"})
@@ -31,6 +34,8 @@ external_stylesheets = [
     dbc.themes.BOOTSTRAP,
     "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css",
 ]
+
+# Set up the app
 app = dash.Dash(
     __name__,
     external_stylesheets=external_stylesheets,
@@ -39,18 +44,16 @@ app = dash.Dash(
 app.title = "MLExchange Example"
 memoize_cache.init_app(app.server)
 
-# SETUP FILE MANAGER
+# Set up the file manager
 dash_file_explorer = FileManager(
-    READ_DIR,
-    UPLOAD_FOLDER_ROOT,
+    DATA_DIR,
     open_explorer=True,
     api_key=TILED_KEY,
-    splash_uri=SPLASH_URL,
+    logger=logger,
 )
 dash_file_explorer.init_callbacks(app)
-du.configure_upload(app, UPLOAD_FOLDER_ROOT, use_upload_id=False)
 
-# DEFINE LAYOUT
+# Define the layout
 app.layout = html.Div(
     [
         dbc.Container(
@@ -145,7 +148,7 @@ app.layout = html.Div(
 )
 
 
-# CALLBACKS
+# Callbacks
 app.clientside_callback(
     ClientsideFunction(namespace="clientside", function_name="transform_image"),
     Output({"type": "thumbnail-src", "index": MATCH}, "src"),
@@ -211,9 +214,8 @@ def update_page(data_project_dict, current_page):
                 list(range(start, end)),
                 log=log,
             )
-            print(
-                f"Time to read page {current_page} {len(src_data)} images: {time.time() - start_time}",
-                flush=True,
+            logger.info(
+                f"Time to read page {current_page} {len(src_data)} images: {time.time() - start_time}"
             )
             return [{"display": "block"}] * len(filenames), filenames, src_data
     return (
@@ -310,11 +312,9 @@ def refresh_image(data_project_dict, img_ind):
 )
 def update_image(image):
     if image is None:
-        print("No image", flush=True)
         return ""
-    print("There is an image", flush=True)
     return image
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run_server(debug=True, port=8053)

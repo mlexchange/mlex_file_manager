@@ -1,7 +1,9 @@
+import logging
 import os
 import pathlib
 import pickle
 import time
+import traceback
 import zipfile
 
 import dash
@@ -22,6 +24,7 @@ class FileManager:
         max_file_size=60000,
         open_explorer=True,
         api_key=None,
+        logger=None,
     ):
         """
         FileManager creates a dash file explorer that supports: (1) local file reading, and (2)
@@ -38,6 +41,7 @@ class FileManager:
         self.max_file_size = max_file_size
         self.api_key = api_key
         self.manager_filename = ".file_manager_vars.pkl"
+        self.logger = logger or logging.getLogger(__name__)
         # Definition of the dash components for file manager
         self.file_explorer = html.Div(
             [
@@ -325,8 +329,8 @@ class FileManager:
             browse_data = data_project.browse_data(
                 sub_uri_template=tiled_query,
             )
-        except Exception as e:
-            print(f"Connection to tiled failed: {e}")
+        except Exception:
+            self.logger.error(f"Connection to tiled failed: {traceback.format_exc()}")
             return dash.no_update, True
         return [{"uri": dataset.uri} for dataset in browse_data], False
 
@@ -402,11 +406,10 @@ class FileManager:
             return {}, dash.no_update, dash.no_update, dash.no_update
 
         elif "refresh-data" in changed_id and os.path.exists(self.manager_filename):
-            print("Refreshing data", flush=True)
             with open(self.manager_filename, "rb") as file:
                 data_project_dict = pickle.load(file)
             data_project = DataProject.from_dict(data_project_dict)
-            print(f"Done after {time.time() - start}")
+            self.logger.info(f"Data project refreshed after {time.time() - start}")
             return (
                 data_project_dict,
                 dash.no_update,
@@ -432,8 +435,10 @@ class FileManager:
                     "",
                     selected_sub_uris=selected_rows,
                 )
-            except Exception as e:
-                print(f"Connection to tiled failed: {e}")
+            except Exception:
+                self.logger.error(
+                    f"Connection to tiled failed: {traceback.format_exc()}"
+                )
                 return [], True, tab_value, dash.no_update
 
         if len(data_project.datasets) == 0:
@@ -450,5 +455,5 @@ class FileManager:
                     file,
                 )
 
-        print(f"Done after {time.time() - start}", flush=True)
+        self.logger.info(f"Data project loaded after {time.time() - start}")
         return data_project_dict, dash.no_update, dash.no_update, total_num_data_points

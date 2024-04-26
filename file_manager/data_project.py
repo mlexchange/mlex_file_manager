@@ -1,6 +1,8 @@
 import bisect
 import hashlib
+import logging
 import os
+import traceback
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -22,6 +24,7 @@ class DataProject:
         api_key=None,
         datasets=[],
         project_id=None,
+        logger=None,
     ):
         """
         Definition of a DataProject
@@ -37,6 +40,7 @@ class DataProject:
         self.datasets = datasets
         self.project_id = project_id
         self.data_type = data_type
+        self.logger = logger or logging.getLogger(__name__)
         pass
 
     def to_dict(self):
@@ -130,8 +134,10 @@ class DataProject:
                         batch_images, batch_uris = future.result()
                         images.append(batch_images)
                         uris.append(batch_uris)
-                except Exception as exc:
-                    print(f"Thread index {thread_index} generated an exception: {exc}")
+                except Exception:
+                    self.logger.error(
+                        f"Thread index {thread_index} generated an exception: {traceback.format_exc()}"
+                    )
                 thread_indices.append(thread_index)
 
         ordered_uris = [uris[i] for i in thread_indices]
@@ -150,10 +156,10 @@ class DataProject:
         return self.datasets[dataset_index].read_data(
             self.root_uri,
             image_indices,
-            export,
-            resize,
-            log,
-            api_key,
+            export=export,
+            resize=resize,
+            log=log,
+            api_key=api_key,
             just_uri=just_uri,
         )
 
