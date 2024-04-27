@@ -19,7 +19,6 @@ from file_manager.main import FileManager
 from plot_utils import draw_rows, get_mask_options
 
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
-SPLASH_URL = os.environ.get("SPLASH_URL", "http://splash:80/api/v0")
 TILED_KEY = os.environ.get("TILED_KEY", "")
 NUM_ROWS = 3
 NUM_COLS = 6
@@ -45,6 +44,7 @@ app = dash.Dash(
     external_stylesheets=external_stylesheets,
     long_callback_manager=long_callback_manager,
 )
+server = app.server
 app.title = "MLExchange Example"
 memoize_cache.init_app(app.server)
 
@@ -391,4 +391,4 @@ def refresh_image(data_project_dict, img_ind):
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True, port=8053)
+    app.run_server(debug=True, host="0.0.0.0")

@@ -6,8 +6,9 @@ dash-uploader==0.6.0
 flask==3.0.0
 Flask-Caching
 numpy>=1.19.5
-Pillow #==8.3.2
+Pillow
 requests==2.26.0
 tiled[client]==0.1.0a107
+gunicorn==20.1.0
 werkzeug>=2.2.3
 diskcache==5.6.3
