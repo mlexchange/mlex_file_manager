@@ -100,9 +100,9 @@ class FileDataset(Dataset):
         if export == "pillow":
             return img
         if resize:
-            img.thumbnail((200, 200), Image.LANCZOS)
+            img.thumbnail((200, 200), Image.BILINEAR)
         rawBytes = io.BytesIO()
-        img.save(rawBytes, "JPEG")
+        img.save(rawBytes, "JPEG", quality=85)
         rawBytes.seek(0)  # return to the start of the file
         img = base64.b64encode(rawBytes.read())
         return "data:image/jpeg;base64," + img.decode("utf-8")
@@ -143,7 +143,7 @@ class FileDataset(Dataset):
 
         thread_indexes = []
         # Use ThreadPoolExecutor to read files in parallel
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        with ThreadPoolExecutor() as executor:
             future_to_index = {
                 executor.submit(
                     self._read_data_point,
