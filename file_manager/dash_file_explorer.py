@@ -5,7 +5,7 @@ import dash_uploader as du
 from dash import dash_table, dcc, html
 
 DEFAULT_TILED_URI = os.getenv("DEFAULT_TILED_URI", "")
-DEFAULT_TILED_QUERY = os.getenv("DEFAULT_TILED_QUERY", "")
+DEFAULT_TILED_SUB_URI = os.getenv("DEFAULT_TILED_SUB_URI", "")
 
 
 def create_file_explorer(max_file_size, upload_folder_root=None):
@@ -166,17 +166,17 @@ def create_file_explorer(max_file_size, upload_folder_root=None):
                                                         dbc.InputGroup(
                                                             [
                                                                 dbc.InputGroupText(
-                                                                    "Query"
+                                                                    "Sub URI"
                                                                 ),
                                                                 dbc.Textarea(
-                                                                    placeholder=DEFAULT_TILED_QUERY,
-                                                                    value=DEFAULT_TILED_QUERY,
+                                                                    placeholder=DEFAULT_TILED_SUB_URI,
+                                                                    value=DEFAULT_TILED_SUB_URI,
                                                                     style={
                                                                         "height": "12px",
                                                                     },
                                                                     id={
                                                                         "base_id": "file-manager",
-                                                                        "name": "tiled-query",
+                                                                        "name": "tiled-sub-uri",
                                                                     },
                                                                 ),
                                                             ]

@@ -181,7 +181,7 @@ class FileManager:
             [
                 Input({"base_id": "file-manager", "name": "tiled-browse"}, "n_clicks"),
                 State({"base_id": "file-manager", "name": "tiled-uri"}, "value"),
-                State({"base_id": "file-manager", "name": "tiled-query"}, "value"),
+                State({"base_id": "file-manager", "name": "tiled-sub-uri"}, "value"),
             ],
             prevent_initial_call=True,
         )(self._load_tiled_table)
@@ -311,13 +311,13 @@ class FileManager:
         )
         return [{"uri": dataset.uri} for dataset in browse_data]
 
-    def _load_tiled_table(self, browse_n_clicks, tiled_uri, tiled_query):
+    def _load_tiled_table(self, browse_n_clicks, tiled_uri, tiled_sub_uri):
         """
         This callback updates the content of the tiled table
         Args:
             browse_n_clicks:        Number of clicks on browse Tiled button
             tiled_uri:              Tiled URI for data access
-            tiled_query:            Query to be applied to the Tiled URI
+            tiled_sub_uri:          Tiled sub_uri query for data access
         Returns:
             table_data:             Updated table data according to browsing selection
             tiled_warning_modal:    Open warning indicating that the connection to tiled failed
@@ -327,7 +327,7 @@ class FileManager:
         )
         try:
             browse_data = data_project.browse_data(
-                sub_uri_template=tiled_query,
+                sub_uri_template=tiled_sub_uri,
             )
         except Exception:
             self.logger.error(f"Connection to tiled failed: {traceback.format_exc()}")
