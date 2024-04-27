@@ -6,12 +6,12 @@ if (typeof window.dash_clientside.clientside === 'undefined') {
     window.dash_clientside.clientside = {};
 }
 
-window.dash_clientside.clientside.transform_raw_data = function(logToggle, mask, minMaxValues, data) {
+window.dash_clientside.clientside.transform_raw_data = function(logToggle, mask, data, minMaxValues) {
     console.log("Received logToggle:", logToggle); // Check logToggle value
     console.log("Received mask:", mask); // Check maskPath value
     console.log("Received minMaxValues:", minMaxValues); // Check minMaxValues value
     console.log("Received data:", data); // Check data value
-    if (typeof data === 'undefined' || data === null) {
+    if (typeof data === 'undefined' || data === null || !Array.isArray(data)) {
         console.log("Data is not defined or null.");
         console.log("Returning original image without transformation.");
         return Promise.resolve(src);
@@ -22,12 +22,18 @@ window.dash_clientside.clientside.transform_raw_data = function(logToggle, mask,
         console.log("Returning original image without transformation.");
         return Promise.resolve(src);
     }
+    console.log("Received data size:", data.length); // Check data value
 
     return new Promise(function(resolve, reject) {
         var maskImage = new Image();
         var outImage = new Image();
-        outImage.width = 128;
-        outImage.height = 128;
+
+        outImage.width = data[0].length;
+        outImage.height = data.length;
+
+        // Get the dimensions of the original 2D array
+        var originalWidth = data[0].length;
+        var originalHeight = data.length;
 
         var maskPromise = mask ?
             new Promise((resolve, reject) => { maskImage.onload = resolve; maskImage.onerror = reject; maskImage.src = mask; }) :
@@ -47,15 +53,18 @@ window.dash_clientside.clientside.transform_raw_data = function(logToggle, mask,
             var ctx = canvas.getContext('2d');
 
             // Set the canvas size to match the image size
-            canvas.width = 128;
-            canvas.height = 128;
+            canvas.width = originalWidth;
+            canvas.height = originalHeight;
+
+            console.log("Canvas width:", canvas.width);
+            console.log("Canvas height:", canvas.height);
 
             var maskData;
             if (mask) {
                 console.log("Mask image loaded successfully");
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 // Resize the mask if it's larger than the image
-                ctx.drawImage(maskImage, 0, 0, 128, 128);
+                ctx.drawImage(maskImage, 0, 0, originalWidth, originalHeight);
                 var tempMaskData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
                 maskData = new Uint8Array(data.length);
                 var j = 0;
@@ -67,12 +76,9 @@ window.dash_clientside.clientside.transform_raw_data = function(logToggle, mask,
                 // Default mask of all 1s
                 maskData = new Uint8Array(data.length).fill(1);
             }
-            console.log("Min value of mask:", Math.min(...maskData));
-            console.log("Max value of mask:", Math.max(...maskData));
 
             // Determine the number of channels
             var numChannels = src.numChannels || 1; // Assuming src.numChannels is defined. If not, default to 1.
-            console.log("Number of channels:", numChannels);
 
             // Apply mask and log transformation to each pixel
             new_min = 255;
@@ -106,7 +112,7 @@ window.dash_clientside.clientside.transform_raw_data = function(logToggle, mask,
             console.log("New min value:", new_min);
             console.log("New max value:", new_max);
 
-            var reshapedData = new Uint8ClampedArray(128 * 128 * 4);
+            var reshapedData = new Uint8ClampedArray(originalWidth * originalHeight * 4);
 
             for (var i = 0, j = 0; i < new_data.length; i++, j += 4) {
                 var tmp = Math.round((new_data[i] - new_min) / (new_max - new_min) * 255);
@@ -125,7 +131,7 @@ window.dash_clientside.clientside.transform_raw_data = function(logToggle, mask,
             }
 
             // Create a new ImageData object
-            var imageData = new ImageData(reshapedData, 128, 128);
+            var imageData = new ImageData(reshapedData, originalWidth, originalHeight);
 
             // Put the image data onto the canvas
             ctx.putImageData(imageData, 0, 0);
@@ -194,8 +200,8 @@ window.dash_clientside.clientside.transform_image = function(logToggle, mask, mi
                 // Default mask of all 1s
                 maskData = new Uint8Array(data.length / 1).fill(1);
             }
-            console.log("Min value of mask:", Math.min(...maskData));
-            console.log("Max value of mask:", Math.max(...maskData));
+            // console.log("Min value of mask:", Math.min(...maskData));
+            // console.log("Max value of mask:", Math.max(...maskData));
 
             // Apply mask and log transformation to each pixel
             new_min = 255;
