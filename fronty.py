@@ -227,8 +227,8 @@ app.clientside_callback(
     Output("img-output", "src"),
     Input("log-transform", "on"),
     Input("selected-mask-store", "src"),
-    Input("min-max-slider", "value"),
     Input("unit-processed-data-store", "data"),
+    State("min-max-slider", "value"),
     prevent_initial_call=True,
 )
 
