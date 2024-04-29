@@ -15,6 +15,8 @@ from dash.exceptions import PreventUpdate
 from file_manager.dash_file_explorer import create_file_explorer
 from file_manager.data_project import DataProject
 
+DATA_DIR = os.getenv("DATA_DIR", ".")
+
 
 class FileManager:
     def __init__(
@@ -40,7 +42,7 @@ class FileManager:
         self.upload_folder_root = upload_folder_root
         self.max_file_size = max_file_size
         self.api_key = api_key
-        self.manager_filename = ".file_manager_vars.pkl"
+        self.manager_filename = f"{DATA_DIR}/.file_manager_vars.pkl"
         self.logger = logger or logging.getLogger(__name__)
         # Definition of the dash components for file manager
         self.file_explorer = html.Div(

@@ -92,7 +92,7 @@ class TiledDataset(Dataset):
         ).astype(np.uint8)
         return image
 
-    def _process_image(self, index, image, log, resize, export):
+    def _process_image(self, image, log, resize, export):
         if log:
             image = self._log_image(image)
         image = Image.fromarray(image)
@@ -173,7 +173,6 @@ class TiledDataset(Dataset):
             data = list(
                 executor.map(
                     self._process_image,
-                    indexes,
                     block_data,
                     [log] * len(indexes),
                     [resize] * len(indexes),
@@ -209,7 +208,7 @@ class TiledDataset(Dataset):
         """
         return int(uri.split("slice=")[-1])
 
-    def _check_node(self, tiled_client, sub_uri, node):
+    def _check_node(tiled_client, sub_uri, node):
         """
         Checks if the sub_uri exists in the node and returns the URI
         Args:
