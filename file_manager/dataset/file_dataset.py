@@ -177,7 +177,7 @@ class FileDataset(Dataset):
         Returns:
             Index of the URI
         """
-        filename = uri.split(self.uri)[-1]
+        filename = uri.split(self.uri, 1)[-1]
         return self.filenames.index(filename[1:])
 
     @staticmethod
