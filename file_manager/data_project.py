@@ -140,7 +140,9 @@ class DataProject:
                     )
                 thread_indices.append(thread_index)
 
-        ordered_uris = [uris[thread_indices.index(i)] for i in range(len(thread_indices))]
+        ordered_uris = [
+            uris[thread_indices.index(i)] for i in range(len(thread_indices))
+        ]
         ordered_uris = list(chain.from_iterable(ordered_uris))
         if just_uri:
             rearranged_uris = [None] * len(sorted_indices)
@@ -148,7 +150,9 @@ class DataProject:
                 rearranged_uris[position] = ordered_uris[original_index]
             return rearranged_uris
 
-        ordered_images = [images[thread_indices.index(i)] for i in range(len(thread_indices))]
+        ordered_images = [
+            images[thread_indices.index(i)] for i in range(len(thread_indices))
+        ]
         ordered_images = list(chain.from_iterable(ordered_images))
         rearranged_uris = [None] * len(sorted_indices)
         rearranged_imgs = [None] * len(sorted_indices)
@@ -256,7 +260,10 @@ class DataProject:
 
             # Find the start and end of the subset
             start_index = bisect.bisect_left(list_indices, prev_data_count)
-            end_index = min(bisect.bisect_right(list_indices, cum_data_count), cum_data_count-prev_data_count)
+            end_index = min(
+                bisect.bisect_right(list_indices, cum_data_count),
+                cum_data_count - prev_data_count,
+            )
 
             # Get the subset of indices within the range
             subset = list_indices[start_index:end_index]
@@ -271,7 +278,7 @@ class DataProject:
                         list_indices.remove(subset[tiled_uris.index(uri)])
                         # indices_to_remove.append(subset[tiled_uris.index(uri)])
             prev_data_count = cum_data_count
-            
+
         return list_indices
 
     def _save_data_content(self, data_content, data_uri, root_dir):
@@ -306,11 +313,12 @@ class DataProject:
         # Return list of URIs
         if correct_path:
             root_dir = "/app/work/data"
-        
+
         tiled_uris = self.read_datasets(indices, just_uri=True)
 
         uri_list = [
-                f"{root_dir}/tiled_local_copy/{self.hash_tiled_uri(tiled_uri)}.tif"
-                for tiled_uri in tiled_uris
-            ]
+            f"{root_dir}/tiled_local_copy/{self.hash_tiled_uri(tiled_uri)}.tif"
+            for tiled_uri in tiled_uris
+        ]
+
         return uri_list
