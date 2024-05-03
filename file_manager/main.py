@@ -331,10 +331,12 @@ class FileManager:
             browse_data = data_project.browse_data(
                 sub_uri_template=tiled_sub_uri,
             )
+            uri_list = [dataset.uri for dataset in browse_data]
+            uri_list.sort()
         except Exception:
             self.logger.error(f"Connection to tiled failed: {traceback.format_exc()}")
             return dash.no_update, True
-        return [{"uri": dataset.uri} for dataset in browse_data], False
+        return [{"uri": uri} for uri in uri_list], False
 
     def _select_all(self, table_data, select_all_n_clicks):
         """
