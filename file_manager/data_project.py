@@ -140,16 +140,22 @@ class DataProject:
                     )
                 thread_indices.append(thread_index)
 
-        ordered_uris = [uris[i] for i in thread_indices]
+        ordered_uris = [uris[thread_indices.index(i)] for i in range(len(thread_indices))]
         ordered_uris = list(chain.from_iterable(ordered_uris))
         if just_uri:
-            return [ordered_uris[i] for i in sorted_indices]
+            rearranged_uris = [None] * len(sorted_indices)
+            for original_index, position in enumerate(sorted_indices):
+                rearranged_uris[position] = ordered_uris[original_index]
+            return rearranged_uris
 
-        ordered_images = [images[i] for i in thread_indices]
+        ordered_images = [images[thread_indices.index(i)] for i in range(len(thread_indices))]
         ordered_images = list(chain.from_iterable(ordered_images))
-        return [ordered_images[i] for i in sorted_indices], [
-            ordered_uris[i] for i in sorted_indices
-        ]
+        rearranged_uris = [None] * len(sorted_indices)
+        rearranged_imgs = [None] * len(sorted_indices)
+        for original_index, position in enumerate(sorted_indices):
+            rearranged_uris[position] = ordered_uris[original_index]
+            rearranged_imgs[position] = ordered_images[original_index]
+        return rearranged_imgs, rearranged_uris
 
     def read_dataset(self, args, just_uri=False):
         dataset_index, image_indices, export, resize, log, api_key = args
@@ -166,9 +172,9 @@ class DataProject:
     def get_index(self, uri):
         cum_points = 0
         for dataset in self.datasets:
-            if dataset.uri in uri:
+            if dataset.uri.replace("/", "") in uri:
                 return cum_points + dataset.get_uri_index(uri.split(self.root_uri)[-1])
-            cum_points += dataset.cumulative_data_count
+            cum_points = dataset.cumulative_data_count
         return None
 
     def browse_data(
@@ -250,18 +256,22 @@ class DataProject:
 
             # Find the start and end of the subset
             start_index = bisect.bisect_left(list_indices, prev_data_count)
-            end_index = bisect.bisect_right(list_indices, cum_data_count)
+            end_index = min(bisect.bisect_right(list_indices, cum_data_count), cum_data_count-prev_data_count)
 
             # Get the subset of indices within the range
             subset = list_indices[start_index:end_index]
-            tiled_uris = dataset.get_tiled_uris(self.root_uri, subset)
-            for uri in tiled_uris:
-                hashed_uri = self.hash_tiled_uri(uri)
-                file_path = os.path.join(
-                    f"{root_dir}/tiled_local_copy", hashed_uri + ".tif"
-                )
-                if os.path.isfile(file_path):
-                    list_indices.remove(subset[tiled_uris.index(uri)])
+            if len(subset) != 0:
+                tiled_uris = dataset.get_tiled_uris(self.root_uri, subset)
+                for uri in tiled_uris:
+                    hashed_uri = self.hash_tiled_uri(uri)
+                    file_path = os.path.join(
+                        f"{root_dir}/tiled_local_copy", hashed_uri + ".tif"
+                    )
+                    if os.path.isfile(file_path):
+                        list_indices.remove(subset[tiled_uris.index(uri)])
+                        # indices_to_remove.append(subset[tiled_uris.index(uri)])
+            prev_data_count = cum_data_count
+            
         return list_indices
 
     def _save_data_content(self, data_content, data_uri, root_dir):
@@ -269,12 +279,13 @@ class DataProject:
         data_content.save(f"{root_dir}/tiled_local_copy/{filename}.tif")
         pass
 
-    def tiled_to_local_project(self, root_dir, indices=None):
+    def tiled_to_local_project(self, root_dir, indices=None, correct_path=False):
         """
         Convert a tiled data project to a local project while saving each dataset to filesystem
         Args:
             pattern:        Pattern to replace in project_id to avoid errors in filesystem
             indices:        List of indices to download
+            correct_path:   Correct the path of the dataset
         """
         os.makedirs(f"{root_dir}/tiled_local_copy", exist_ok=True)
         if indices is None:
@@ -293,13 +304,13 @@ class DataProject:
                     )
                 )
         # Return list of URIs
-        uri_list = []
-        for dataset in self.datasets:
-            tiled_uris = dataset.get_tiled_uris(self.root_uri, indices)
-            uri_list.extend(
-                [
-                    f"{root_dir}/tiled_local_copy/{self.hash_tiled_uri(tiled_uri)}.tif"
-                    for tiled_uri in tiled_uris
-                ]
-            )
+        if correct_path:
+            root_dir = "/app/work/data"
+        
+        tiled_uris = self.read_datasets(indices, just_uri=True)
+
+        uri_list = [
+                f"{root_dir}/tiled_local_copy/{self.hash_tiled_uri(tiled_uri)}.tif"
+                for tiled_uri in tiled_uris
+            ]
         return uri_list
