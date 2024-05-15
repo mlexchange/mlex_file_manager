@@ -11,6 +11,7 @@ from itertools import chain
 
 import numpy as np
 import requests
+import tifffile
 
 from file_manager.dataset.file_dataset import FileDataset
 from file_manager.dataset.tiled_dataset import TiledDataset
@@ -283,7 +284,11 @@ class DataProject:
 
     def _save_data_content(self, data_content, data_uri, root_dir):
         filename = self.hash_tiled_uri(data_uri)
-        data_content.save(f"{root_dir}/tiled_local_copy/{filename}.tif")
+        tifffile.imwrite(
+            f"{root_dir}/tiled_local_copy/{filename}.tif",
+            data_content,
+            dtype=data_content.dtype,
+        )
         pass
 
     def tiled_to_local_project(self, root_dir, indices=None, correct_path=False):
@@ -300,7 +305,7 @@ class DataProject:
         filtered_indices = self.check_if_data_downloaded(indices[:], root_dir)
         if len(filtered_indices) > 0:
             data_contents, data_uris = self.read_datasets(
-                filtered_indices, export="pillow", resize=False, log=False
+                filtered_indices, export="raw", resize=False, log=False
             )
             with ThreadPoolExecutor() as executor:
                 list(
