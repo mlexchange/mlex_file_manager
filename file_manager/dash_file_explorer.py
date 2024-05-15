@@ -71,16 +71,47 @@ def create_file_explorer(max_file_size, upload_folder_root=None):
                                                 style=upload_style,
                                             ),
                                             # FILE TABLE
-                                            dbc.Button(
-                                                "Select all",
-                                                id={
-                                                    "base_id": "file-manager",
-                                                    "name": "select-all-files",
-                                                },
-                                                n_clicks=0,
-                                                color="primary",
-                                                outline=True,
-                                                style={"margin-top": "10px"},
+                                            dbc.Row(
+                                                [
+                                                    dbc.Col(
+                                                        [
+                                                            dbc.Button(
+                                                                "Select all",
+                                                                id={
+                                                                    "base_id": "file-manager",
+                                                                    "name": "select-all-files",
+                                                                },
+                                                                n_clicks=0,
+                                                                color="primary",
+                                                                outline=True,
+                                                                style={
+                                                                    "margin-top": "10px",
+                                                                    "width": "100%",
+                                                                },
+                                                            ),
+                                                        ],
+                                                        width=2,
+                                                    ),
+                                                    dbc.Col(
+                                                        [
+                                                            dbc.Button(
+                                                                "Unselect all",
+                                                                id={
+                                                                    "base_id": "file-manager",
+                                                                    "name": "unselect-all-files",
+                                                                },
+                                                                n_clicks=0,
+                                                                color="danger",
+                                                                outline=True,
+                                                                style={
+                                                                    "margin-top": "10px",
+                                                                    "width": "100%",
+                                                                },
+                                                            ),
+                                                        ],
+                                                        width=2,
+                                                    ),
+                                                ]
                                             ),
                                             dbc.Row(
                                                 children=[

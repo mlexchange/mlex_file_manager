@@ -192,25 +192,57 @@ class FileManager:
         app.callback(
             Output({"base_id": "file-manager", "name": "files-table"}, "selected_rows"),
             [
-                Input({"base_id": "file-manager", "name": "files-table"}, "data"),
                 Input(
                     {"base_id": "file-manager", "name": "select-all-files"}, "n_clicks"
                 ),
+                State({"base_id": "file-manager", "name": "files-table"}, "data"),
             ],
             prevent_initial_call=True,
         )(self._select_all)
         pass
 
         app.callback(
-            Output({"base_id": "file-manager", "name": "tiled-table"}, "selected_rows"),
+            Output(
+                {"base_id": "file-manager", "name": "files-table"},
+                "selected_rows",
+                allow_duplicate=True,
+            ),
             [
-                Input({"base_id": "file-manager", "name": "tiled-table"}, "data"),
                 Input(
-                    {"base_id": "file-manager", "name": "select-all-tiled"}, "n_clicks"
+                    {"base_id": "file-manager", "name": "unselect-all-files"},
+                    "n_clicks",
                 ),
             ],
             prevent_initial_call=True,
+        )(self._unselect_all)
+        pass
+
+        app.callback(
+            Output({"base_id": "file-manager", "name": "tiled-table"}, "selected_rows"),
+            [
+                Input(
+                    {"base_id": "file-manager", "name": "select-all-tiled"}, "n_clicks"
+                ),
+                State({"base_id": "file-manager", "name": "tiled-table"}, "data"),
+            ],
+            prevent_initial_call=True,
         )(self._select_all)
+        pass
+
+        app.callback(
+            Output(
+                {"base_id": "file-manager", "name": "tiled-table"},
+                "selected_rows",
+                allow_duplicate=True,
+            ),
+            [
+                Input(
+                    {"base_id": "file-manager", "name": "unselect-all-tiled"},
+                    "n_clicks",
+                ),
+            ],
+            prevent_initial_call=True,
+        )(self._unselect_all)
         pass
 
         app.long_callback(
@@ -338,18 +370,30 @@ class FileManager:
             return dash.no_update, True
         return [{"uri": uri} for uri in uri_list], False
 
-    def _select_all(self, table_data, select_all_n_clicks):
+    def _select_all(self, select_all_n_clicks, table_data):
         """
         This callback selects all rows in the table
         Args:
-            table_data:             Current values within the table
             select_all_n_clicks:    Number of clicks on select all button
+            table_data:             Current values within the table
         Returns:
             selected_rows:          List of selected rows
         """
         if select_all_n_clicks:
             return list(range(len(table_data)))
         return []
+
+    def _unselect_all(self, unselect_all_n_clicks):
+        """
+        This callback unselects all rows in the table
+        Args:
+            select_all_n_clicks:    Number of clicks on select all button
+        Returns:
+            selected_rows:          List of selected rows
+        """
+        if unselect_all_n_clicks:
+            return []
+        raise PreventUpdate
 
     def _load_dataset(
         self,
