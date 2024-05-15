@@ -443,7 +443,7 @@ class FileManager:
                 self.logger.error(
                     f"Connection to tiled failed: {traceback.format_exc()}"
                 )
-                return [], True, tab_value, dash.no_update
+                return {}, True, tab_value, dash.no_update
 
         if len(data_project.datasets) == 0:
             total_num_data_points = 0
