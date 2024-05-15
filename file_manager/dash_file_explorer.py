@@ -90,7 +90,7 @@ def create_file_explorer(max_file_size, upload_folder_root=None):
                                                                 },
                                                             ),
                                                         ],
-                                                        width=2,
+                                                        width=3,
                                                     ),
                                                     dbc.Col(
                                                         [
@@ -109,9 +109,10 @@ def create_file_explorer(max_file_size, upload_folder_root=None):
                                                                 },
                                                             ),
                                                         ],
-                                                        width=2,
+                                                        width=3,
                                                     ),
-                                                ]
+                                                ],
+                                                className="g-0",
                                             ),
                                             dbc.Row(
                                                 children=[
@@ -191,7 +192,7 @@ def create_file_explorer(max_file_size, upload_folder_root=None):
                                                                 ),
                                                             ]
                                                         ),
-                                                        width=5,
+                                                        width=6,
                                                     ),
                                                     dbc.Col(
                                                         dbc.InputGroup(
@@ -212,35 +213,72 @@ def create_file_explorer(max_file_size, upload_folder_root=None):
                                                                 ),
                                                             ]
                                                         ),
-                                                        width=5,
-                                                    ),
-                                                    dbc.Col(
-                                                        dbc.Button(
-                                                            "Browse Tiled",
-                                                            id={
-                                                                "base_id": "file-manager",
-                                                                "name": "tiled-browse",
-                                                            },
-                                                            color="primary",
-                                                            outline=True,
-                                                            n_clicks=0,
-                                                            style={"width": "100%"},
-                                                        ),
-                                                        width=2,
+                                                        width=6,
                                                     ),
                                                 ]
                                             ),
+                                            dbc.Row(
+                                                [
+                                                    dbc.Button(
+                                                        "Browse Tiled",
+                                                        id={
+                                                            "base_id": "file-manager",
+                                                            "name": "tiled-browse",
+                                                        },
+                                                        color="primary",
+                                                        outline=True,
+                                                        n_clicks=0,
+                                                        style={
+                                                            "width": "40%",
+                                                            "margin-top": "10px",
+                                                        },
+                                                    )
+                                                ],
+                                                justify="center",
+                                            ),
                                             # TILED TABLE
-                                            dbc.Button(
-                                                "Select all",
-                                                id={
-                                                    "base_id": "file-manager",
-                                                    "name": "select-all-tiled",
-                                                },
-                                                n_clicks=0,
-                                                color="primary",
-                                                outline=True,
-                                                style={"margin-top": "10px"},
+                                            dbc.Row(
+                                                [
+                                                    dbc.Col(
+                                                        [
+                                                            dbc.Button(
+                                                                "Select all",
+                                                                id={
+                                                                    "base_id": "file-manager",
+                                                                    "name": "select-all-tiled",
+                                                                },
+                                                                n_clicks=0,
+                                                                color="primary",
+                                                                outline=True,
+                                                                style={
+                                                                    "margin-top": "10px",
+                                                                    "width": "100%",
+                                                                },
+                                                            ),
+                                                        ],
+                                                        width=3,
+                                                    ),
+                                                    dbc.Col(
+                                                        [
+                                                            dbc.Button(
+                                                                "Unselect all",
+                                                                id={
+                                                                    "base_id": "file-manager",
+                                                                    "name": "unselect-all-tiled",
+                                                                },
+                                                                n_clicks=0,
+                                                                color="danger",
+                                                                outline=True,
+                                                                style={
+                                                                    "margin-top": "10px",
+                                                                    "width": "100%",
+                                                                },
+                                                            ),
+                                                        ],
+                                                        width=3,
+                                                    ),
+                                                ],
+                                                className="g-0",
                                             ),
                                             dbc.Row(
                                                 children=[
