@@ -10,9 +10,6 @@ from tiled.client.array import ArrayClient
 
 from file_manager.dataset.dataset import Dataset
 
-# import time
-
-
 # Check if a static tiled client has been set
 STATIC_TILED_URI = os.getenv("STATIC_TILED_URI", None)
 STATIC_TILED_API_KEY = os.getenv("STATIC_TILED_API_KEY", None)
@@ -76,8 +73,8 @@ class TiledDataset(Dataset):
             client = from_uri(tiled_uri, api_key=api_key)
             return client
 
-    @staticmethod
-    def _log_image(image, threshold=1):
+    @classmethod
+    def _log_image(cls, image, threshold=0.000000000001):
         """
         Process image
         Args:
@@ -85,25 +82,45 @@ class TiledDataset(Dataset):
         Returns:
             PIL image
         """
-        image = image.astype(np.float32)
-        image = np.log(image + threshold)
-        image = (
-            (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
-        ).astype(np.uint8)
-        return image
+        # Mask negative and NaN values
+        nan_img = np.isnan(image)
+        img_neg = image < 0.0
+        mask_neg = np.array(img_neg)
+        mask_nan = np.array(nan_img)
+        mask = mask_nan + mask_neg
+        x = np.ma.array(image, mask=mask)
+
+        image = np.log(x + threshold)
+        x = np.ma.array(image, mask=mask)
+
+        x = cls._normalize_percentiles(x)
+        return x
+
+    @staticmethod
+    def _normalize_percentiles(x, low_perc=0.01, high_perc=99):
+        low = np.percentile(x.ravel(), low_perc)
+        high = np.percentile(x.ravel(), high_perc)
+        x = (np.clip((x - low) / (high - low), 0, 1) * 255).astype(np.uint8)
+        return x
 
     def _process_image(self, image, log, resize, export):
         if log:
             image = self._log_image(image)
+        elif image.dtype != np.uint8:
+            image = self._normalize_percentiles(image)
+
         image = Image.fromarray(image)
+
         if resize:
             image = image.resize((200, 200))
+
         if export == "pillow":
             return image
         else:
             buffered = io.BytesIO()
             image.save(buffered, format="PNG")
             contents = buffered.getvalue()
+
         contents_base64 = base64.b64encode(contents).decode("utf-8")
         return f"data:image/png;base64,{contents_base64}"
 
@@ -159,11 +176,8 @@ class TiledDataset(Dataset):
                 block_data = tiled_data
                 block_data = np.expand_dims(block_data, axis=0)
 
-        if block_data.dtype != np.uint8:
-            low = np.percentile(block_data.ravel(), 1)
-            high = np.percentile(block_data.ravel(), 99)
-            block_data = np.clip((block_data - low) / (high - low), 0, 1)
-            block_data = (block_data * 255).astype(np.uint8)
+        if export == "raw":
+            return block_data, tiled_uris
 
         # Check if there are 4 dimensions for a grayscale image
         if block_data.shape[1] == 1:
