@@ -457,7 +457,7 @@ class FileManager:
             with open(self.manager_filename, "rb") as file:
                 data_project_dict = pickle.load(file)
             data_project = DataProject.from_dict(data_project_dict)
-            self.logger.info(f"Data project refreshed after {time.time() - start}")
+            self.logger.debug(f"Data project refreshed after {time.time() - start}")
             return (
                 data_project_dict,
                 dash.no_update,
@@ -503,5 +503,5 @@ class FileManager:
                     file,
                 )
 
-        self.logger.info(f"Data project loaded after {time.time() - start}")
+        self.logger.debug(f"Data project loaded after {time.time() - start}")
         return data_project_dict, dash.no_update, dash.no_update, total_num_data_points
