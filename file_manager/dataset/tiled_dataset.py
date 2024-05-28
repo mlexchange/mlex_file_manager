@@ -2,6 +2,7 @@ import base64
 import concurrent.futures
 import io
 import os
+from functools import partial
 
 import numpy as np
 from PIL import Image
@@ -244,7 +245,16 @@ class TiledDataset(Dataset):
             return None
 
     @staticmethod
-    def _get_cumulative_data_count(tiled_client, nodes):
+    def _get_node_size(tiled_client, node):
+        tiled_array = tiled_client[node]
+        array_shape = tiled_array.shape
+        if len(array_shape) == 2:
+            return 1
+        else:
+            return array_shape[0]
+
+    @classmethod
+    def _get_cumulative_data_count(cls, tiled_client, nodes):
         """
         Retrieve tiled data sets from list of tiled_uris
         Args:
@@ -253,21 +263,13 @@ class TiledDataset(Dataset):
         Returns:
             Length of the data set
         """
-        sizes = []
-        cumulative_dataset_size = 0
-        for node in nodes:
-            tiled_array = tiled_client[node]
-            # TODO: check if there are more sub-containers
-            if type(tiled_array) is ArrayClient:
-                array_shape = tiled_array.shape
-                if len(array_shape) == 2:
-                    cumulative_dataset_size += 1
-                else:
-                    cumulative_dataset_size += array_shape[0]
-            else:
-                cumulative_dataset_size += 1
-            sizes.append(cumulative_dataset_size)
-        return sizes
+        get_node_size_with_client = partial(cls._get_node_size, tiled_client)
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            sizes = list(executor.map(get_node_size_with_client, nodes))
+
+        cumulative_dataset_size = [sum(sizes[: i + 1]) for i in range(len(sizes))]
+        return cumulative_dataset_size
 
     @classmethod
     def browse_data(
@@ -290,6 +292,17 @@ class TiledDataset(Dataset):
         """
         tiled_client = cls._get_tiled_client(root_uri, api_key)
         if selected_sub_uris != [""]:
+            # Check if the selected sub URIs are nodes
+            tmp_sub_uris = []
+            for sub_uri in selected_sub_uris:
+                if type(tiled_client[sub_uri]) is ArrayClient:
+                    tmp_sub_uris.append(sub_uri)
+                else:
+                    tmp_sub_uris += [
+                        f"{sub_uri}/{node}" for node in tiled_client[sub_uri]
+                    ]
+            selected_sub_uris = tmp_sub_uris
+
             # Get sizes of the selected nodes
             cumulative_data_counts = cls._get_cumulative_data_count(
                 tiled_client,
