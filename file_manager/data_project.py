@@ -4,7 +4,7 @@ import logging
 import os
 import traceback
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from functools import partial
 from itertools import chain
@@ -52,25 +52,25 @@ class DataProject:
         """
         return {
             "root_uri": self.root_uri,
-            "api_key": self.api_key,
             "datasets": [dataset.to_dict() for dataset in self.datasets],
             "project_id": self.project_id,
             "data_type": self.data_type,
         }
 
     @classmethod
-    def from_dict(cls, data_project_dict):
+    def from_dict(cls, data_project_dict, api_key=None):
         """
         Create a new instance from dictionary
         Args:
             data_project_dict:           Dictionary
+            api_key:                     API key
         Returns:
             New instance
         """
         return cls(
             data_project_dict["root_uri"],
             data_project_dict["data_type"],
-            api_key=data_project_dict["api_key"],
+            api_key=api_key,
             datasets=[
                 (
                     FileDataset.from_dict(dataset)
@@ -96,6 +96,13 @@ class DataProject:
         Returns:
             List of datasets
         """
+
+        # Initialize tiled client if needed
+        if self.data_type == "tiled":
+            tiled_client = TiledDataset.get_tiled_client(self.root_uri, self.api_key)
+        else:
+            tiled_client = None
+
         sorted_indices = np.argsort(indices)
         sorted_list = np.array(indices)[sorted_indices]
 
@@ -109,61 +116,50 @@ class DataProject:
             image_index = index - (cumulative_counts[new_i - 1] if new_i > 0 else 0)
             dataset_indices[new_i].append(image_index)
 
-        images = []
-        uris = []
-        thread_indices = []
-
         tasks = [
-            (dataset_index, image_indices, export, resize, log, self.api_key)
+            (
+                dataset_index,
+                image_indices,
+                export,
+                resize,
+                log,
+                self.api_key,
+                tiled_client,
+            )
             for dataset_index, image_indices in dataset_indices.items()
         ]
 
-        # Use ThreadPoolExecutor to run tasks in parallel
         with ThreadPoolExecutor() as executor:
-            future_to_dataset = {
-                executor.submit(self.read_dataset, task, just_uri=just_uri): index
-                for index, task in enumerate(tasks)
-            }
-
-            for future in as_completed(future_to_dataset):
-                thread_index = future_to_dataset[future]
-                try:
-                    if just_uri:
-                        batch_uris = future.result()
-                        uris.append(batch_uris)
-                    else:
-                        batch_images, batch_uris = future.result()
-                        images.append(batch_images)
-                        uris.append(batch_uris)
-                except Exception:
-                    self.logger.error(
-                        f"Thread index {thread_index} generated an exception: {traceback.format_exc()}"
+            try:
+                if just_uri:
+                    uris = list(
+                        executor.map(self.read_dataset, tasks, [just_uri] * len(tasks))
                     )
-                thread_indices.append(thread_index)
+                else:
+                    results = list(
+                        executor.map(self.read_dataset, tasks, [just_uri] * len(tasks))
+                    )
+                    images, uris = map(list, zip(*results))
+                    images = list(chain.from_iterable(images))
+                uris = list(chain.from_iterable(uris))
+            except Exception:
+                self.logger.error(f"Generated an exception: {traceback.format_exc()}")
 
-        ordered_uris = [
-            uris[thread_indices.index(i)] for i in range(len(thread_indices))
-        ]
-        ordered_uris = list(chain.from_iterable(ordered_uris))
         if just_uri:
             rearranged_uris = [None] * len(sorted_indices)
             for original_index, position in enumerate(sorted_indices):
-                rearranged_uris[position] = ordered_uris[original_index]
+                rearranged_uris[position] = uris[original_index]
             return rearranged_uris
 
-        ordered_images = [
-            images[thread_indices.index(i)] for i in range(len(thread_indices))
-        ]
-        ordered_images = list(chain.from_iterable(ordered_images))
         rearranged_uris = [None] * len(sorted_indices)
         rearranged_imgs = [None] * len(sorted_indices)
         for original_index, position in enumerate(sorted_indices):
-            rearranged_uris[position] = ordered_uris[original_index]
-            rearranged_imgs[position] = ordered_images[original_index]
+            rearranged_uris[position] = uris[original_index]
+            rearranged_imgs[position] = images[original_index]
         return rearranged_imgs, rearranged_uris
 
     def read_dataset(self, args, just_uri=False):
-        dataset_index, image_indices, export, resize, log, api_key = args
+        dataset_index, image_indices, export, resize, log, api_key, tiled_client = args
         return self.datasets[dataset_index].read_data(
             self.root_uri,
             image_indices,
@@ -171,6 +167,7 @@ class DataProject:
             resize=resize,
             log=log,
             api_key=api_key,
+            tiled_client=tiled_client,
             just_uri=just_uri,
         )
 
@@ -254,33 +251,40 @@ class DataProject:
         """
         return hashlib.new(hash_function, uri.encode(("utf-8"))).hexdigest()
 
-    def check_if_data_downloaded(self, list_indices, root_dir):
+    def _check_file_and_remove_index(self, uri, subset, tiled_uris, root_dir):
+        hashed_uri = self.hash_tiled_uri(uri)
+        file_path = os.path.join(f"{root_dir}/tiled_local_copy", hashed_uri + ".tif")
+        if os.path.isfile(file_path):
+            self._list_indices.remove(subset[tiled_uris.index(uri)])
+
+    def _check_if_data_downloaded(self, list_indices, root_dir, tiled_uris):
+        self._list_indices = list_indices
         prev_data_count = 0
         for dataset in self.datasets:
             cum_data_count = dataset.cumulative_data_count
 
             # Find the start and end of the subset
-            start_index = bisect.bisect_left(list_indices, prev_data_count)
+            start_index = bisect.bisect_left(self._list_indices, prev_data_count)
             end_index = min(
-                bisect.bisect_right(list_indices, cum_data_count),
+                bisect.bisect_right(self._list_indices, cum_data_count),
                 cum_data_count - prev_data_count,
             )
 
             # Get the subset of indices within the range
-            subset = list_indices[start_index:end_index]
+            subset = self._list_indices[start_index:end_index]
             if len(subset) != 0:
-                tiled_uris = dataset.get_tiled_uris(self.root_uri, subset)
-                for uri in tiled_uris:
-                    hashed_uri = self.hash_tiled_uri(uri)
-                    file_path = os.path.join(
-                        f"{root_dir}/tiled_local_copy", hashed_uri + ".tif"
+                tiled_uris = tiled_uris[start_index:end_index]
+                with ThreadPoolExecutor() as executor:
+                    check_func = partial(
+                        self._check_file_and_remove_index,
+                        subset=subset,
+                        tiled_uris=tiled_uris,
+                        root_dir=root_dir,
                     )
-                    if os.path.isfile(file_path):
-                        list_indices.remove(subset[tiled_uris.index(uri)])
-                        # indices_to_remove.append(subset[tiled_uris.index(uri)])
+                    executor.map(check_func, tiled_uris)
             prev_data_count = cum_data_count
 
-        return list_indices
+        return self._list_indices
 
     def _save_data_content(self, data_content, data_uri, root_dir):
         filename = self.hash_tiled_uri(data_uri)
@@ -302,7 +306,12 @@ class DataProject:
         os.makedirs(f"{root_dir}/tiled_local_copy", exist_ok=True)
         if indices is None:
             indices = list(range(self.datasets[-1].cumulative_data_count))
-        filtered_indices = self.check_if_data_downloaded(indices[:], root_dir)
+        tiled_uris = self.read_datasets(indices, just_uri=True)
+
+        filtered_indices = self._check_if_data_downloaded(
+            indices[:], root_dir, tiled_uris
+        )
+
         if len(filtered_indices) > 0:
             data_contents, data_uris = self.read_datasets(
                 filtered_indices, export="raw", resize=False, log=False
@@ -319,11 +328,8 @@ class DataProject:
         if correct_path:
             root_dir = "/app/work/data"
 
-        tiled_uris = self.read_datasets(indices, just_uri=True)
-
         uri_list = [
             f"{root_dir}/tiled_local_copy/{self.hash_tiled_uri(tiled_uri)}.tif"
             for tiled_uri in tiled_uris
         ]
-
         return uri_list
