@@ -55,7 +55,7 @@ class TiledDataset(Dataset):
         return cls(dataset_dict["uri"], dataset_dict["cumulative_data_count"])
 
     @staticmethod
-    def _get_tiled_client(
+    def get_tiled_client(
         tiled_uri, api_key=None, static_tiled_client=STATIC_TILED_CLIENT
     ):
         """
@@ -135,6 +135,7 @@ class TiledDataset(Dataset):
         api_key=None,
         downsample=False,
         just_uri=False,
+        tiled_client=None,
     ):
         """
         Read data set
@@ -154,11 +155,13 @@ class TiledDataset(Dataset):
         if isinstance(indexes, int):
             indexes = [indexes]
 
-        tiled_uris = self.get_tiled_uris(root_uri, indexes)
+        if tiled_client is None:
+            tiled_client = self.get_tiled_client(root_uri, api_key)
+
+        tiled_uris = self._get_tiled_uris(tiled_client, indexes)
         if just_uri:
             return tiled_uris
 
-        tiled_client = self._get_tiled_client(root_uri, api_key)
         tiled_data = tiled_client[self.uri]
         if downsample:
             if len(tiled_data.shape) == 4:
@@ -196,21 +199,18 @@ class TiledDataset(Dataset):
             )
         return data, tiled_uris
 
-    def get_tiled_uris(self, root_uri, indexes):
+    def _get_tiled_uris(self, tiled_client, indexes):
         """
         Get tiled URIs
         Args:
-            root_uri:          Root URI from which data should be retrieved
+            tiled_client:      Tiled client
             indexes:           List of indexes of the images to retrieve
         Returns:
             List of tiled URIs
         """
-        tiled_client = self._get_tiled_client(root_uri)
-        base_tiled_uri = tiled_client[self.uri].uri
-        if (
-            len(tiled_client[self.uri].shape) > 2
-            and tiled_client[self.uri].shape[0] > 1
-        ):
+        tiled_metadata = tiled_client[self.uri]
+        base_tiled_uri = tiled_metadata.uri
+        if len(tiled_metadata.shape) > 2 and tiled_metadata.shape[0] > 1:
             base_tiled_uri.replace("/metadata/", "/array/full/")
             return [f"{base_tiled_uri}?slice={index}" for index in indexes]
         else:
@@ -290,7 +290,7 @@ class TiledDataset(Dataset):
             tiled_uris:              List of tiled URIs found in tiled client
             cumulative_data_counts:  Cumulative data count
         """
-        tiled_client = cls._get_tiled_client(root_uri, api_key)
+        tiled_client = cls.get_tiled_client(root_uri, api_key)
         if selected_sub_uris != [""]:
             # Check if the selected sub URIs are nodes
             tmp_sub_uris = []

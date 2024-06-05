@@ -249,13 +249,14 @@ class DataProject:
         Returns:
             Hashed URI
         """
-        return hashlib.new(hash_function, uri.encode(("utf-8"))).hexdigest()
+        hashed_uri = hashlib.new(hash_function, uri.encode(("utf-8"))).hexdigest()
+        return hashed_uri
 
     def _check_file_and_remove_index(self, uri, subset, tiled_uris, root_dir):
         hashed_uri = self.hash_tiled_uri(uri)
         file_path = os.path.join(f"{root_dir}/tiled_local_copy", hashed_uri + ".tif")
         if os.path.isfile(file_path):
-            self._list_indices.remove(subset[tiled_uris.index(uri)])
+            self._list_indices.remove(tiled_uris.index(uri))
 
     def _check_if_data_downloaded(self, list_indices, root_dir, tiled_uris):
         self._list_indices = list_indices
