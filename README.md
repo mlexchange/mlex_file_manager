@@ -18,15 +18,11 @@ Simple data management system with [Dash UI](https://dash.plotly.com) and [Tiled
 ## Ingest data with MLExchange File Manager
 The MLExchange File Manager supports data access through:
 
-1. Loading data from file system: You can access image data located at the ```data``` folder in the main directory. Currently, the supported formats are: PNG, JPG/JPEG, and TIF/TIFF.
+1. Loading data from file system: You can access image data located at ```DATA_DIR```. Currently, the supported formats are: PNG, JPG/JPEG, and TIF/TIFF.
 
-2. Loading data from [Tiled](https://blueskyproject.io/tiled/): Alternatively, you can access data through Tiled by providing a ```tiled_server_uri``` in the frontend of your application and the ```TILED_KEY``` associated with this server as an environment variable.
+2. Loading data from [Tiled](https://blueskyproject.io/tiled/): Alternatively, you can access data through Tiled by providing a ```TILED_URI```, optionally a ```TILED_SUB_URI``` in the frontend of your application, and the ```TILED_KEY``` associated with this server as an environment variable. Please note that you can set up default values for ```DEFAULT_TILED_URI``` and ```DEFAULT_TILED_SUB_URI``` in the environment file. An example environment file is defined in ```.env.example```
 
 3. Browse directories or Tiled nodes and **IMPORT** the selected files.
-
-4. [Optional] Upload data with the **Drag and Drop** option in the frontend. 
-Upload either a single file or a zip file (files) through drag and drop.
-User can then browse the newly added files/folder in the path table.
 
 ## How to set up MLExchange File Manager in your application
 
@@ -37,34 +33,35 @@ User can then browse the newly added files/folder in the path table.
     ```
 
 2. Define your file explorer, initialize its callbacks, and set up the upload data path considering the following parameters:
-    
+
     - data_folder_root:       [str] Root folder to data directory for local loading
-    - upload_folder_root:     [str] Root folder to upload directory
-    - splash_uri:             [str] URI to splash-ml service
-    - max_file_size:          [int] Maximum file size for uploaded data, defaults to 60000
     - open_explorer:          [bool] Open/close the file explorer at start up
     - api_key:                [str] Tiled API key
+    - logger:                 [object] An instance of a logging object
 
     An example code to set this up is shown bellow:
     ```
     # Create the file manager dash object
     dash_file_explorer = FileManager(data_folder_root,
-                                     upload_folder_root,
-                                     splash_uri,
-                                     max_file_size
                                      open_explorer,
-                                     api_key)
+                                     api_key,
+                                     logger)
     # Init callbacks
     dash_file_explorer.init_callbacks(app)
-    # Configure upload folder
-    du.configure_upload(app, upload_folder_root, use_upload_id=False)
     ```
 
 3. Incorporate the following dash components to your callbacks to load the data:
 
-    - ```Input({'base_id': 'file-manager', 'name': 'docker-file-paths'}, 'data')```
-        
-        List of selected data sets, e.g. [dataset1, dataset2], where dataset1 can be a LocalDataset or TiledDataset.
+    - ```Input({'base_id': 'file-manager', 'name': 'data-project-dict'}, 'data')```
+
+        Contains a dictionary with the definition of a ```DataProject```:
+
+            root_uri:           Root (file or tiled) URI
+            data_type:          Data type, file or tiled
+            api_key:            [Optional] API key, if tiled
+            datasets:           List of datasets
+            project_id:         Project ID
+
     - [Optional] ```Output({'base_id': 'file-manager', 'name': 'confirm-update-data'}, 'data'),```
 
         Bool flag that indicates if the dataset can be updated. If this flag is set to *False*, the *CLEAR DATA* button in the frontend application will not allow importing new data until the flag is set to *True*. This prevents users from accidently clearing the data without saving their results.
@@ -74,15 +71,17 @@ User can then browse the newly added files/folder in the path table.
     ```
     from file_manager.data_project import DataProject
 
-    data_project = DataProject()
-    data_project.init_from_dict(file_paths)
+    data_project = DataProject.from_dict(data_project_dict)
     ```
 
-    In the previous example, ```file_paths``` correspond to the dictionary stored in ```{'base_id': 'file-manager', 'name': 'docker-file-paths'}```. Once the data is loaded in the corresponding object, we can access the 10th (index=9) element of this project by using:
+    In the previous example, ```data_project_dict``` correspond to the dictionary stored in ```{'base_id': 'file-manager', 'name': 'data-project-dict'}```. Once the data is loaded in the corresponding object, we can access the 6th and 10th (index=[5, 9]) elements of this project by using:
 
     ```
-    base64_image, image_uri = data_project.data[9].read_data(export='base64',
-                                                             resize=True)
+    base64_image, image_uri = data_project.read_datasets(
+        [5,9],
+        export='base64',
+        resize=True
+        )
     ```
 
     The parameters of *read_data* are described as follows:
@@ -91,7 +90,7 @@ User can then browse the newly added files/folder in the path table.
 
 ## Copyright
 
-MLExchange Copyright (c) 2023, The Regents of the University of California, through Lawrence Berkeley National Laboratory (subject to receipt of any required approvals from the U.S. Dept. of Energy). All rights reserved.
+MLExchange Copyright (c) 2024, The Regents of the University of California, through Lawrence Berkeley National Laboratory (subject to receipt of any required approvals from the U.S. Dept. of Energy). All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
