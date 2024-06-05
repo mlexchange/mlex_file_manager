@@ -1,7 +1,9 @@
+import logging
 import os
 import pathlib
 import pickle
 import time
+import traceback
 import zipfile
 
 import dash
@@ -13,17 +15,18 @@ from dash.exceptions import PreventUpdate
 from file_manager.dash_file_explorer import create_file_explorer
 from file_manager.data_project import DataProject
 
+DATA_DIR = os.getenv("DATA_DIR", ".")
+
 
 class FileManager:
     def __init__(
         self,
         data_folder_root,
         upload_folder_root=None,
-        splash_uri="http://splash:80/api/v0",
         max_file_size=60000,
         open_explorer=True,
         api_key=None,
-        default_tiled_uri="",
+        logger=None,
     ):
         """
         FileManager creates a dash file explorer that supports: (1) local file reading, and (2)
@@ -31,18 +34,16 @@ class FileManager:
         Args:
             data_folder_root:       [str] Root folder to data directory for local loading
             upload_folder_root:     [str] Root folder to upload directory
-            splash_uri:             [str] URI to splash-ml service
             max_file_size:          [int] Maximum file size for uploaded data, defaults to 60000
             open_explorer:          [bool] Open/close the file explorer at start up
             api_key:                [str] Tiled API key
-            default_tiled_uri:      [str] Default Tiled URI to be displayed in file manager
         """
         self.data_folder_root = data_folder_root
         self.upload_folder_root = upload_folder_root
         self.max_file_size = max_file_size
-        self.splash_uri = splash_uri
         self.api_key = api_key
-        self.manager_filename = ".file_manager_vars.pkl"
+        self.manager_filename = f"{DATA_DIR}/.file_manager_vars.pkl"
+        self.logger = logger or logging.getLogger(__name__)
         # Definition of the dash components for file manager
         self.file_explorer = html.Div(
             [
@@ -122,9 +123,7 @@ class FileManager:
                     ),
                 ),
                 dbc.Collapse(
-                    create_file_explorer(
-                        max_file_size, default_tiled_uri, self.upload_folder_root
-                    ),
+                    create_file_explorer(max_file_size, self.upload_folder_root),
                     id={"base_id": "file-manager", "name": "collapse-explorer"},
                     is_open=open_explorer,
                 ),
@@ -184,7 +183,7 @@ class FileManager:
             [
                 Input({"base_id": "file-manager", "name": "tiled-browse"}, "n_clicks"),
                 State({"base_id": "file-manager", "name": "tiled-uri"}, "value"),
-                State({"base_id": "file-manager", "name": "tiled-query"}, "value"),
+                State({"base_id": "file-manager", "name": "tiled-sub-uri"}, "value"),
             ],
             prevent_initial_call=True,
         )(self._load_tiled_table)
@@ -193,25 +192,57 @@ class FileManager:
         app.callback(
             Output({"base_id": "file-manager", "name": "files-table"}, "selected_rows"),
             [
-                Input({"base_id": "file-manager", "name": "files-table"}, "data"),
                 Input(
                     {"base_id": "file-manager", "name": "select-all-files"}, "n_clicks"
                 ),
+                State({"base_id": "file-manager", "name": "files-table"}, "data"),
             ],
             prevent_initial_call=True,
         )(self._select_all)
         pass
 
         app.callback(
-            Output({"base_id": "file-manager", "name": "tiled-table"}, "selected_rows"),
+            Output(
+                {"base_id": "file-manager", "name": "files-table"},
+                "selected_rows",
+                allow_duplicate=True,
+            ),
             [
-                Input({"base_id": "file-manager", "name": "tiled-table"}, "data"),
                 Input(
-                    {"base_id": "file-manager", "name": "select-all-tiled"}, "n_clicks"
+                    {"base_id": "file-manager", "name": "unselect-all-files"},
+                    "n_clicks",
                 ),
             ],
             prevent_initial_call=True,
+        )(self._unselect_all)
+        pass
+
+        app.callback(
+            Output({"base_id": "file-manager", "name": "tiled-table"}, "selected_rows"),
+            [
+                Input(
+                    {"base_id": "file-manager", "name": "select-all-tiled"}, "n_clicks"
+                ),
+                State({"base_id": "file-manager", "name": "tiled-table"}, "data"),
+            ],
+            prevent_initial_call=True,
         )(self._select_all)
+        pass
+
+        app.callback(
+            Output(
+                {"base_id": "file-manager", "name": "tiled-table"},
+                "selected_rows",
+                allow_duplicate=True,
+            ),
+            [
+                Input(
+                    {"base_id": "file-manager", "name": "unselect-all-tiled"},
+                    "n_clicks",
+                ),
+            ],
+            prevent_initial_call=True,
+        )(self._unselect_all)
         pass
 
         app.long_callback(
@@ -314,13 +345,13 @@ class FileManager:
         )
         return [{"uri": dataset.uri} for dataset in browse_data]
 
-    def _load_tiled_table(self, browse_n_clicks, tiled_uri, tiled_query):
+    def _load_tiled_table(self, browse_n_clicks, tiled_uri, tiled_sub_uri):
         """
         This callback updates the content of the tiled table
         Args:
             browse_n_clicks:        Number of clicks on browse Tiled button
             tiled_uri:              Tiled URI for data access
-            tiled_query:            Query to be applied to the Tiled URI
+            tiled_sub_uri:          Tiled sub_uri query for data access
         Returns:
             table_data:             Updated table data according to browsing selection
             tiled_warning_modal:    Open warning indicating that the connection to tiled failed
@@ -330,25 +361,39 @@ class FileManager:
         )
         try:
             browse_data = data_project.browse_data(
-                sub_uri_template=tiled_query,
+                sub_uri_template=tiled_sub_uri,
             )
-        except Exception as e:
-            print(f"Connection to tiled failed: {e}")
+            uri_list = [dataset.uri for dataset in browse_data]
+            uri_list.sort()
+        except Exception:
+            self.logger.error(f"Connection to tiled failed: {traceback.format_exc()}")
             return dash.no_update, True
-        return [{"uri": dataset.uri} for dataset in browse_data], False
+        return [{"uri": uri} for uri in uri_list], False
 
-    def _select_all(self, table_data, select_all_n_clicks):
+    def _select_all(self, select_all_n_clicks, table_data):
         """
         This callback selects all rows in the table
         Args:
-            table_data:             Current values within the table
             select_all_n_clicks:    Number of clicks on select all button
+            table_data:             Current values within the table
         Returns:
             selected_rows:          List of selected rows
         """
         if select_all_n_clicks:
             return list(range(len(table_data)))
         return []
+
+    def _unselect_all(self, unselect_all_n_clicks):
+        """
+        This callback unselects all rows in the table
+        Args:
+            select_all_n_clicks:    Number of clicks on select all button
+        Returns:
+            selected_rows:          List of selected rows
+        """
+        if unselect_all_n_clicks:
+            return []
+        raise PreventUpdate
 
     def _load_dataset(
         self,
@@ -399,21 +444,26 @@ class FileManager:
             in [
                 '{"base_id":"file-manager","name":"clear-data"}.n_clicks',
                 '{"base_id":"file-manager","name":"refresh-data"}.n_clicks',
-                '{"base_id": "file-manager", "name": "import-dir"}.n_clicks',
+                '{"base_id":"file-manager","name":"import-dir"}.n_clicks',
             ]
             and not update_data
         ):
             raise PreventUpdate
 
         elif "clear-data" in changed_id:
-            return [], dash.no_update, dash.no_update, dash.no_update
+            return {}, dash.no_update, dash.no_update, dash.no_update
 
         elif "refresh-data" in changed_id and os.path.exists(self.manager_filename):
             with open(self.manager_filename, "rb") as file:
                 data_project_dict = pickle.load(file)
             data_project = DataProject.from_dict(data_project_dict)
-            print(f"Done after {time.time() - start}")
-            return data_project_dict, dash.no_update, tab_value, dash.no_update
+            self.logger.debug(f"Data project refreshed after {time.time() - start}")
+            return (
+                data_project_dict,
+                dash.no_update,
+                tab_value,
+                data_project.datasets[-1].cumulative_data_count,
+            )
 
         if tab_value != "tiled" and bool(file_rows):
             selected_rows = []
@@ -433,9 +483,11 @@ class FileManager:
                     "",
                     selected_sub_uris=selected_rows,
                 )
-            except Exception as e:
-                print(f"Connection to tiled failed: {e}")
-                return [], True, tab_value, dash.no_update
+            except Exception:
+                self.logger.error(
+                    f"Connection to tiled failed: {traceback.format_exc()}"
+                )
+                return {}, True, tab_value, dash.no_update
 
         if len(data_project.datasets) == 0:
             total_num_data_points = 0
@@ -451,5 +503,5 @@ class FileManager:
                     file,
                 )
 
-        print(f"Done after {time.time() - start}", flush=True)
+        self.logger.debug(f"Data project loaded after {time.time() - start}")
         return data_project_dict, dash.no_update, dash.no_update, total_num_data_points

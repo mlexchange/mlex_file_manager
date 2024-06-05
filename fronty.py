@@ -1,28 +1,34 @@
+import base64
+import logging
 import os
 import time
+from io import BytesIO
 
 import dash
 import dash_bootstrap_components as dbc
 import dash_daq as daq
-import dash_uploader as du
 import diskcache
+import numpy as np
 from dash import ALL, MATCH, ClientsideFunction, Input, Output, State, dcc, html
 from dash.long_callback import DiskcacheLongCallbackManager
 from flask_caching import Cache
+from PIL import Image
 
 from file_manager.data_project import DataProject
 from file_manager.main import FileManager
-from plot_utils import draw_rows
+from plot_utils import draw_rows, get_mask_options
 
-READ_DIR = "data"
-UPLOAD_FOLDER_ROOT = "data/upload"
-SPLASH_URL = os.environ.get("SPLASH_URL", "http://splash:80/api/v0")
+DATA_DIR = os.environ.get("DATA_DIR", "/data")
 TILED_KEY = os.environ.get("TILED_KEY", "")
 NUM_ROWS = 3
 NUM_COLS = 6
 TIMEOUT = 60
 
-# SETUP DASH APP
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Set up caching
 cache = diskcache.Cache("./cache")
 long_callback_manager = DiskcacheLongCallbackManager(cache)
 memoize_cache = Cache(config={"CACHE_TYPE": "filesystem", "CACHE_DIR": "./cache"})
@@ -31,26 +37,27 @@ external_stylesheets = [
     dbc.themes.BOOTSTRAP,
     "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css",
 ]
+
+# Set up the app
 app = dash.Dash(
     __name__,
     external_stylesheets=external_stylesheets,
     long_callback_manager=long_callback_manager,
 )
+server = app.server
 app.title = "MLExchange Example"
 memoize_cache.init_app(app.server)
 
-# SETUP FILE MANAGER
+# Set up the file manager
 dash_file_explorer = FileManager(
-    READ_DIR,
-    UPLOAD_FOLDER_ROOT,
+    DATA_DIR,
     open_explorer=True,
     api_key=TILED_KEY,
-    splash_uri=SPLASH_URL,
+    logger=logger,
 )
 dash_file_explorer.init_callbacks(app)
-du.configure_upload(app, UPLOAD_FOLDER_ROOT, use_upload_id=False)
 
-# DEFINE LAYOUT
+# Define the layout
 app.layout = html.Div(
     [
         dbc.Container(
@@ -58,85 +65,143 @@ app.layout = html.Div(
                 html.H1("MLExchange File Manager Example"),
                 dash_file_explorer.file_explorer,
                 html.P(""),
-                dbc.Card(
+                dbc.Row(
                     [
-                        dbc.CardHeader("Data display"),
-                        dbc.CardBody(
-                            children=dcc.Tabs(
-                                id="viz-mode",
-                                value="gallery",
-                                children=[
-                                    dcc.Tab(
-                                        label="Gallery",
-                                        value="gallery",
-                                        children=draw_rows(NUM_ROWS, NUM_COLS)
-                                        + [
-                                            dbc.Row(
-                                                [
-                                                    dbc.Button(
-                                                        className="fa fa-chevron-left",
-                                                        id="prev-page",
-                                                        style={"width": "5%"},
-                                                    ),
-                                                    dbc.Button(
-                                                        className="fa fa-chevron-right",
-                                                        id="next-page",
-                                                        style={"width": "5%"},
-                                                    ),
-                                                ]
+                        dbc.Col(
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader("Data transformation"),
+                                    dbc.CardBody(
+                                        [
+                                            daq.BooleanSwitch(
+                                                id="log-transform",
+                                                on=False,
+                                                label="Log transform",
                                             ),
-                                            dcc.Store(id="current-page", data=0),
-                                        ],
+                                            html.P(""),
+                                            html.P("Min-Max"),
+                                            dcc.RangeSlider(
+                                                id="min-max-slider",
+                                                min=0,
+                                                max=20,
+                                                disabled=True,
+                                                # label="Min-Max",
+                                                tooltip={
+                                                    "placement": "bottom",
+                                                    "always_visible": True,
+                                                },
+                                            ),
+                                            html.P(""),
+                                            html.P("Mask Selection"),
+                                            dcc.Dropdown(
+                                                id="mask-dropdown",
+                                                options=get_mask_options(),
+                                            ),
+                                        ]
                                     ),
-                                    dcc.Tab(
-                                        label="Single Image",
-                                        value="single",
-                                        children=[
-                                            dbc.Row(
-                                                [
-                                                    html.Img(
-                                                        id="img-output",
-                                                        style={"width": "20%"},
+                                ]
+                            ),
+                            width=3,
+                        ),
+                        dbc.Col(
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader("Data display"),
+                                    dbc.CardBody(
+                                        children=dcc.Tabs(
+                                            id="viz-mode",
+                                            value="gallery",
+                                            children=[
+                                                dcc.Tab(
+                                                    label="Gallery",
+                                                    value="gallery",
+                                                    children=draw_rows(
+                                                        NUM_ROWS, NUM_COLS
                                                     )
-                                                ],
-                                                #  html.Canvas(id='image-canvas'),],
-                                                justify="center",
-                                            ),
-                                            dbc.Row(
-                                                [
-                                                    dbc.Label(
-                                                        id="img-label",
-                                                        style={"height": "3rem"},
-                                                    ),
-                                                ],
-                                            ),
-                                            dbc.Row(
-                                                [
-                                                    dcc.Slider(
-                                                        id="img-slider",
-                                                        min=0,
-                                                        step=1,
-                                                        marks=None,
-                                                        value=0,
-                                                        tooltip={
-                                                            "placement": "bottom",
-                                                            "always_visible": True,
-                                                        },
-                                                    )
-                                                ]
-                                            ),
-                                        ],
+                                                    + [
+                                                        dbc.Row(
+                                                            [
+                                                                dbc.Button(
+                                                                    className="fa fa-chevron-left",
+                                                                    id="prev-page",
+                                                                    style={
+                                                                        "width": "5%"
+                                                                    },
+                                                                ),
+                                                                dbc.Button(
+                                                                    className="fa fa-chevron-right",
+                                                                    id="next-page",
+                                                                    style={
+                                                                        "width": "5%"
+                                                                    },
+                                                                ),
+                                                            ]
+                                                        ),
+                                                        dcc.Store(
+                                                            id="current-page", data=0
+                                                        ),
+                                                    ],
+                                                ),
+                                                dcc.Tab(
+                                                    label="Single Image",
+                                                    value="single",
+                                                    children=[
+                                                        dbc.Row(
+                                                            [
+                                                                html.Img(
+                                                                    id="img-output",
+                                                                    style={
+                                                                        "width": "20%"
+                                                                    },
+                                                                )
+                                                            ],
+                                                            #  html.Canvas(id='image-canvas'),],
+                                                            justify="center",
+                                                        ),
+                                                        dbc.Row(
+                                                            [
+                                                                dbc.Label(
+                                                                    id="img-label",
+                                                                    style={
+                                                                        "height": "3rem"
+                                                                    },
+                                                                ),
+                                                            ],
+                                                        ),
+                                                        dbc.Row(
+                                                            [
+                                                                dcc.Slider(
+                                                                    id="img-slider",
+                                                                    min=0,
+                                                                    step=1,
+                                                                    marks=None,
+                                                                    value=0,
+                                                                    tooltip={
+                                                                        "placement": "bottom",
+                                                                        "always_visible": True,
+                                                                    },
+                                                                )
+                                                            ]
+                                                        ),
+                                                    ],
+                                                ),
+                                            ],
+                                        ),
                                     ),
-                                ],
+                                    dbc.Button("Download", id="download-button"),
+                                    dcc.Store(id="download-data"),
+                                    dcc.Store(
+                                        id="unit-processed-data-store", data=None
+                                    ),
+                                    html.Img(
+                                        id="selected-mask-store",
+                                        src=None,
+                                        style={"display": "none"},
+                                    ),
+                                ]
                             ),
                         ),
-                        daq.BooleanSwitch(
-                            id="log-transform", on=False, label="Log transform"
-                        ),
-                        dbc.Button("Download", id="download-button"),
-                        dcc.Store(id="download-data"),
-                        dcc.Store(id="unit-processed-data-store", data=None),
-                    ]
+                    ],
                 ),
             ],
             fluid=True,
@@ -145,46 +210,51 @@ app.layout = html.Div(
 )
 
 
-# CALLBACKS
+# Callbacks
 app.clientside_callback(
     ClientsideFunction(namespace="clientside", function_name="transform_image"),
     Output({"type": "thumbnail-src", "index": MATCH}, "src"),
     Input("log-transform", "on"),
-    Input({"type": "thumbnail-src", "index": MATCH}, "src"),
-    State({"type": "processed-data-store", "index": MATCH}, "data"),
+    Input("selected-mask-store", "src"),
+    Input("min-max-slider", "value"),
+    Input({"type": "processed-data-store", "index": MATCH}, "data"),
     prevent_initial_call=True,
 )
 
 
 app.clientside_callback(
-    ClientsideFunction(namespace="clientside", function_name="transform_image"),
+    ClientsideFunction(namespace="clientside", function_name="transform_raw_data"),
     Output("img-output", "src"),
     Input("log-transform", "on"),
-    Input("img-output", "src"),
-    State("unit-processed-data-store", "data"),
+    Input("selected-mask-store", "src"),
+    Input("unit-processed-data-store", "data"),
+    State("min-max-slider", "value"),
     prevent_initial_call=True,
 )
 
 
 @app.callback(
-    Output({"type": "thumbnail-src", "index": MATCH}, "src", allow_duplicate=True),
-    Input({"type": "processed-data-store", "index": MATCH}, "data"),
-    State({"type": "thumbnail-card", "index": MATCH}, "id"),
+    Output("selected-mask-store", "src"),
+    Input("mask-dropdown", "value"),
     prevent_initial_call=True,
 )
-def update_thumbnail(processed_data, id):
-    # Update your thumbnails using the processed data from the dcc.Store
-    # Here, you can extract the specific part of the data relevant to this thumbnail
-    # based on its index or any other identifier included in the 'id' state
-    if processed_data is None:
-        return ""
-
-    # Example assuming processed_data is a list of dicts where each dict contains
-    # 'style', 'name', and 'src' keys for each thumbnail
-    return processed_data
+def update_mask(value):
+    if value is None:
+        return None
+    mask = Image.open(value)
+    buffered = BytesIO()
+    mask.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue())
+    img_str = img_str.decode("ascii")
+    img_data_url = "data:image/png;base64," + img_str
+    return img_data_url
 
 
 @app.callback(
+    Output("min-max-slider", "disabled"),
+    Output("min-max-slider", "value"),
+    Output("min-max-slider", "max"),
+    Output("min-max-slider", "min"),
     Output({"type": "thumbnail-card", "index": ALL}, "style"),
     Output({"type": "thumbnail-name", "index": ALL}, "children"),
     Output({"type": "processed-data-store", "index": ALL}, "data"),
@@ -211,12 +281,23 @@ def update_page(data_project_dict, current_page):
                 list(range(start, end)),
                 log=log,
             )
-            print(
-                f"Time to read page {current_page} {len(src_data)} images: {time.time() - start_time}",
-                flush=True,
+            logger.info(
+                f"Time to read page {current_page} {len(src_data)} images: {time.time() - start_time}"
             )
-            return [{"display": "block"}] * len(filenames), filenames, src_data
+            return (
+                False,
+                [0, 255],
+                255,
+                0,
+                [{"display": "block"}] * len(filenames),
+                filenames,
+                src_data,
+            )
     return (
+        True,
+        dash.no_update,
+        dash.no_update,
+        dash.no_update,
         [{"display": "None"}] * NUM_ROWS * NUM_COLS,
         [""] * NUM_ROWS * NUM_COLS,
         [""] * NUM_ROWS * NUM_COLS,
@@ -264,6 +345,9 @@ def download_data(n_clicks, data_project_dict):
 
 
 @app.callback(
+    Output("min-max-slider", "disabled", allow_duplicate=True),
+    Output("min-max-slider", "max", allow_duplicate=True),
+    Output("min-max-slider", "min", allow_duplicate=True),
     Output("unit-processed-data-store", "data"),
     Output("img-slider", "max"),
     Output("img-slider", "value"),
@@ -290,7 +374,10 @@ def refresh_image(data_project_dict, img_ind):
             slider_max = data_project.datasets[-1].cumulative_data_count - 1
             if img_ind > slider_max:
                 img_ind = 0
-            image, uri = data_project.read_datasets([img_ind], log=False)
+            image, uri = data_project.read_datasets(
+                [img_ind], log=False, export="pillow"
+            )
+            image = np.array(image)
             image = image[0]
             uri = uri[0]
         else:
@@ -298,23 +385,10 @@ def refresh_image(data_project_dict, img_ind):
             uri = dash.no_update
             slider_max = 0
             img_ind = 0
-        return image, slider_max, img_ind, uri
+        return False, 255, 0, image, slider_max, img_ind, uri
     else:
-        return None, 0, 0, ""
-
-
-@app.callback(
-    Output("img-output", "src", allow_duplicate=True),
-    Input("unit-processed-data-store", "data"),
-    prevent_initial_call=True,
-)
-def update_image(image):
-    if image is None:
-        print("No image", flush=True)
-        return ""
-    print("There is an image", flush=True)
-    return image
+        return True, dash.no_update, dash.no_update, None, 0, 0, ""
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run_server(debug=True, host="0.0.0.0")

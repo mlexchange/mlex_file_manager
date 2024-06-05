@@ -25,7 +25,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
-    project_urls={"Source": "https://github.com/taxe10/mlex_file_manager.git"},
+    project_urls={"Source": "https://github.com/mlexchange/mlex_file_manager.git"},
     python_requires=">=3.0",  # Minimum version requirement of the package
     # package_dir={'':'file_manager'},     # Directory of the source code of the package
     install_requires=required,  # Install other dependencies if any

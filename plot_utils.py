@@ -1,5 +1,20 @@
+import glob
+
 import dash_bootstrap_components as dbc
 from dash import dcc, html
+
+
+def get_mask_options():
+    """
+    This function gets the mask options
+    Returns:
+        mask_options:       List of mask options
+    """
+    mask_files = glob.glob("assets/masks/*.tif")
+    mask_options = []
+    for mask_file in mask_files:
+        mask_options.append({"label": mask_file.split("/")[-1], "value": mask_file})
+    return mask_options
 
 
 def parse_contents(index):

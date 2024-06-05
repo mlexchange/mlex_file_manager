@@ -1,6 +1,11 @@
 # Project-related
 **cache**
 **.ipynb
+**.pkl
+**.vscode
+assets/masks/
+file_manager/treedir/
+assets/image_transformation copy.js
 
 # Byte-compiled / optimized / DLL files
 **pycache**

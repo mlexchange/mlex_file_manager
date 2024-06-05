@@ -2,6 +2,7 @@ import base64
 import concurrent.futures
 import io
 import os
+from functools import partial
 
 import numpy as np
 from PIL import Image
@@ -10,17 +11,11 @@ from tiled.client.array import ArrayClient
 
 from file_manager.dataset.dataset import Dataset
 
-# import time
-
-
 # Check if a static tiled client has been set
 STATIC_TILED_URI = os.getenv("STATIC_TILED_URI", None)
 STATIC_TILED_API_KEY = os.getenv("STATIC_TILED_API_KEY", None)
 if STATIC_TILED_URI:
-    if STATIC_TILED_API_KEY:
-        STATIC_TILED_CLIENT = from_uri(STATIC_TILED_URI, api_key=STATIC_TILED_API_KEY)
-    else:
-        STATIC_TILED_CLIENT = from_uri(STATIC_TILED_URI)
+    STATIC_TILED_CLIENT = from_uri(STATIC_TILED_URI, api_key=STATIC_TILED_API_KEY)
 else:
     STATIC_TILED_CLIENT = None
 
@@ -60,7 +55,7 @@ class TiledDataset(Dataset):
         return cls(dataset_dict["uri"], dataset_dict["cumulative_data_count"])
 
     @staticmethod
-    def _get_tiled_client(
+    def get_tiled_client(
         tiled_uri, api_key=None, static_tiled_client=STATIC_TILED_CLIENT
     ):
         """
@@ -76,14 +71,11 @@ class TiledDataset(Dataset):
         if static_tiled_client:
             return static_tiled_client
         else:
-            if api_key:
-                client = from_uri(tiled_uri, api_key=api_key)
-            else:
-                client = from_uri(tiled_uri)
+            client = from_uri(tiled_uri, api_key=api_key)
             return client
 
-    @staticmethod
-    def _log_image(image, threshold=1):
+    @classmethod
+    def _log_image(cls, image, threshold=0.000000000001):
         """
         Process image
         Args:
@@ -91,25 +83,45 @@ class TiledDataset(Dataset):
         Returns:
             PIL image
         """
-        image = image.astype(np.float32)
-        image = np.log(image + threshold)
-        image = (
-            (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
-        ).astype(np.uint8)
-        return image
+        # Mask negative and NaN values
+        nan_img = np.isnan(image)
+        img_neg = image < 0.0
+        mask_neg = np.array(img_neg)
+        mask_nan = np.array(nan_img)
+        mask = mask_nan + mask_neg
+        x = np.ma.array(image, mask=mask)
 
-    def _process_image(self, index, image, log, resize, export):
+        image = np.log(x + threshold)
+        x = np.ma.array(image, mask=mask)
+
+        x = cls._normalize_percentiles(x)
+        return x
+
+    @staticmethod
+    def _normalize_percentiles(x, low_perc=0.01, high_perc=99):
+        low = np.percentile(x.ravel(), low_perc)
+        high = np.percentile(x.ravel(), high_perc)
+        x = (np.clip((x - low) / (high - low), 0, 1) * 255).astype(np.uint8)
+        return x
+
+    def _process_image(self, image, log, resize, export):
         if log:
             image = self._log_image(image)
+        elif image.dtype != np.uint8:
+            image = self._normalize_percentiles(image)
+
         image = Image.fromarray(image)
+
         if resize:
             image = image.resize((200, 200))
+
         if export == "pillow":
             return image
         else:
             buffered = io.BytesIO()
             image.save(buffered, format="PNG")
             contents = buffered.getvalue()
+
         contents_base64 = base64.b64encode(contents).decode("utf-8")
         return f"data:image/png;base64,{contents_base64}"
 
@@ -122,6 +134,8 @@ class TiledDataset(Dataset):
         log=False,
         api_key=None,
         downsample=False,
+        just_uri=False,
+        tiled_client=None,
     ):
         """
         Read data set
@@ -133,6 +147,7 @@ class TiledDataset(Dataset):
             log:               Apply log(1+x) to the image, defaults to False
             api_key:           Tiled API key
             downsample:        Downsample the image, defaults to False
+            just_uri:          Return only the uri, defaults to False
         Returns:
             Base64/PIL image
             Dataset URI
@@ -140,9 +155,14 @@ class TiledDataset(Dataset):
         if isinstance(indexes, int):
             indexes = [indexes]
 
-        tiled_client = self._get_tiled_client(root_uri, api_key)
+        if tiled_client is None:
+            tiled_client = self.get_tiled_client(root_uri, api_key)
+
+        tiled_uris = self._get_tiled_uris(tiled_client, indexes)
+        if just_uri:
+            return tiled_uris
+
         tiled_data = tiled_client[self.uri]
-        # start = time.time()
         if downsample:
             if len(tiled_data.shape) == 4:
                 block_data = tiled_data[indexes, :, ::10, ::10]
@@ -159,18 +179,9 @@ class TiledDataset(Dataset):
             else:
                 block_data = tiled_data
                 block_data = np.expand_dims(block_data, axis=0)
-        # print(
-        #     f"Time to read {len(indexes)} images of size {block_data.shape}: {time.time() - start}",
-        #     flush=True,
-        # )
 
-        if block_data.dtype != np.uint8:
-            low = np.percentile(block_data.ravel(), 1)
-            high = np.percentile(block_data.ravel(), 99)
-            block_data = np.clip((block_data - low) / (high - low), 0, 1)
-            block_data = (block_data * 255).astype(np.uint8)
-
-        # print(f"Shape: {block_data.shape}", flush=True)
+        if export == "raw":
+            return block_data, tiled_uris
 
         # Check if there are 4 dimensions for a grayscale image
         if block_data.shape[1] == 1:
@@ -180,52 +191,70 @@ class TiledDataset(Dataset):
             data = list(
                 executor.map(
                     self._process_image,
-                    indexes,
                     block_data,
                     [log] * len(indexes),
                     [resize] * len(indexes),
                     [export] * len(indexes),
                 )
             )
-
-        tiled_uris = self.get_tiled_uris(root_uri, indexes)
         return data, tiled_uris
 
-    def get_tiled_uris(self, root_uri, indexes):
+    def _get_tiled_uris(self, tiled_client, indexes):
         """
         Get tiled URIs
         Args:
-            root_uri:          Root URI from which data should be retrieved
+            tiled_client:      Tiled client
             indexes:           List of indexes of the images to retrieve
         Returns:
             List of tiled URIs
         """
-        if len(indexes) > 1:
-            return [f"{root_uri}{self.uri}?slice={index}" for index in indexes]
+        tiled_metadata = tiled_client[self.uri]
+        base_tiled_uri = tiled_metadata.uri
+        if len(tiled_metadata.shape) > 2 and tiled_metadata.shape[0] > 1:
+            base_tiled_uri.replace("/metadata/", "/array/full/")
+            return [f"{base_tiled_uri}?slice={index}" for index in indexes]
         else:
-            return [f"{root_uri}{self.uri}"]
+            return [base_tiled_uri]
 
-    @staticmethod
-    def _check_node(tiled_client, query, node):
+    def get_uri_index(self, uri):
         """
-        Checks if the query exists in the node and returns the URI
+        Get index of the URI
+        Args:
+            uri:          URI of the image
+        Returns:
+            Index of the URI
+        """
+        if "slice=" not in uri:
+            return 0
+        return int(uri.split("slice=")[-1])
+
+    def _check_node(tiled_client, sub_uri, node):
+        """
+        Checks if the sub_uri exists in the node and returns the URI
         Args:
             tiled_client:       Current tiled client, which is used when the method is run
-            query:              Query to filter the data
+            sub_uri:           sub_uri to filter the data
             node:               Node to process
         Returns:
             URI of the node
         """
-        # TODO: SUBPATH instead of QUERY
         try:
-            tiled_client[f"/{node}/{query}"]
-            return f"/{node}/{query}"
-        except Exception as e:
-            print(e, flush=True)
+            tiled_client[f"/{node}/{sub_uri}"]
+            return f"/{node}/{sub_uri}"
+        except Exception:
             return None
 
     @staticmethod
-    def _get_cumulative_data_count(tiled_client, nodes):
+    def _get_node_size(tiled_client, node):
+        tiled_array = tiled_client[node]
+        array_shape = tiled_array.shape
+        if len(array_shape) == 2:
+            return 1
+        else:
+            return array_shape[0]
+
+    @classmethod
+    def _get_cumulative_data_count(cls, tiled_client, nodes):
         """
         Retrieve tiled data sets from list of tiled_uris
         Args:
@@ -234,21 +263,13 @@ class TiledDataset(Dataset):
         Returns:
             Length of the data set
         """
-        sizes = []
-        cumulative_dataset_size = 0
-        for node in nodes:
-            tiled_array = tiled_client[node]
-            # TODO: check if there are more sub-containers
-            if type(tiled_array) is ArrayClient:
-                array_shape = tiled_array.shape
-                if len(array_shape) == 2:
-                    cumulative_dataset_size += 1
-                else:
-                    cumulative_dataset_size += array_shape[0]
-            else:
-                cumulative_dataset_size += 1
-            sizes.append(cumulative_dataset_size)
-        return sizes
+        get_node_size_with_client = partial(cls._get_node_size, tiled_client)
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            sizes = list(executor.map(get_node_size_with_client, nodes))
+
+        cumulative_dataset_size = [sum(sizes[: i + 1]) for i in range(len(sizes))]
+        return cumulative_dataset_size
 
     @classmethod
     def browse_data(
@@ -269,8 +290,19 @@ class TiledDataset(Dataset):
             tiled_uris:              List of tiled URIs found in tiled client
             cumulative_data_counts:  Cumulative data count
         """
-        tiled_client = cls._get_tiled_client(root_uri, api_key)
+        tiled_client = cls.get_tiled_client(root_uri, api_key)
         if selected_sub_uris != [""]:
+            # Check if the selected sub URIs are nodes
+            tmp_sub_uris = []
+            for sub_uri in selected_sub_uris:
+                if type(tiled_client[sub_uri]) is ArrayClient:
+                    tmp_sub_uris.append(sub_uri)
+                else:
+                    tmp_sub_uris += [
+                        f"{sub_uri}/{node}" for node in tiled_client[sub_uri]
+                    ]
+            selected_sub_uris = tmp_sub_uris
+
             # Get sizes of the selected nodes
             cumulative_data_counts = cls._get_cumulative_data_count(
                 tiled_client,

@@ -1,12 +1,17 @@
 import bisect
 import hashlib
+import logging
 import os
+import traceback
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from functools import partial
+from itertools import chain
 
 import numpy as np
 import requests
+import tifffile
 
 from file_manager.dataset.file_dataset import FileDataset
 from file_manager.dataset.tiled_dataset import TiledDataset
@@ -20,6 +25,7 @@ class DataProject:
         api_key=None,
         datasets=[],
         project_id=None,
+        logger=None,
     ):
         """
         Definition of a DataProject
@@ -35,6 +41,7 @@ class DataProject:
         self.datasets = datasets
         self.project_id = project_id
         self.data_type = data_type
+        self.logger = logger or logging.getLogger(__name__)
         pass
 
     def to_dict(self):
@@ -45,25 +52,25 @@ class DataProject:
         """
         return {
             "root_uri": self.root_uri,
-            "api_key": self.api_key,
             "datasets": [dataset.to_dict() for dataset in self.datasets],
             "project_id": self.project_id,
             "data_type": self.data_type,
         }
 
     @classmethod
-    def from_dict(cls, data_project_dict):
+    def from_dict(cls, data_project_dict, api_key=None):
         """
         Create a new instance from dictionary
         Args:
             data_project_dict:           Dictionary
+            api_key:                     API key
         Returns:
             New instance
         """
         return cls(
             data_project_dict["root_uri"],
             data_project_dict["data_type"],
-            api_key=data_project_dict["api_key"],
+            api_key=api_key,
             datasets=[
                 (
                     FileDataset.from_dict(dataset)
@@ -75,7 +82,9 @@ class DataProject:
             project_id=data_project_dict["project_id"],
         )
 
-    def read_datasets(self, indices, export="base64", resize=True, log=False):
+    def read_datasets(
+        self, indices, export="base64", resize=True, log=False, just_uri=False
+    ):
         """
         Get datasets at specific indices
         Args:
@@ -83,9 +92,17 @@ class DataProject:
             export:         Export format of the data
             resize:         Resize image to 200x200, defaults to True
             log:            Take logarithm of the data, defaults to False
+            just_uri:       Return only the URIs, defaults to False
         Returns:
             List of datasets
         """
+
+        # Initialize tiled client if needed
+        if self.data_type == "tiled":
+            tiled_client = TiledDataset.get_tiled_client(self.root_uri, self.api_key)
+        else:
+            tiled_client = None
+
         sorted_indices = np.argsort(indices)
         sorted_list = np.array(indices)[sorted_indices]
 
@@ -99,38 +116,68 @@ class DataProject:
             image_index = index - (cumulative_counts[new_i - 1] if new_i > 0 else 0)
             dataset_indices[new_i].append(image_index)
 
-        images = []
-        uris = []
-
         tasks = [
-            (dataset_index, image_indices, export, resize, log, self.api_key)
+            (
+                dataset_index,
+                image_indices,
+                export,
+                resize,
+                log,
+                self.api_key,
+                tiled_client,
+            )
             for dataset_index, image_indices in dataset_indices.items()
         ]
 
-        # Use ThreadPoolExecutor to run tasks in parallel
         with ThreadPoolExecutor() as executor:
-            future_to_dataset = {
-                executor.submit(self.read_dataset, task): task[0] for task in tasks
-            }
-
-            for future in as_completed(future_to_dataset):
-                dataset_index = future_to_dataset[future]
-                try:
-                    batch_images, batch_uris = future.result()
-                    images.extend(batch_images)
-                    uris.extend(batch_uris)
-                except Exception as exc:
-                    print(
-                        f"Dataset index {dataset_index} generated an exception: {exc}"
+            try:
+                if just_uri:
+                    uris = list(
+                        executor.map(self.read_dataset, tasks, [just_uri] * len(tasks))
                     )
+                else:
+                    results = list(
+                        executor.map(self.read_dataset, tasks, [just_uri] * len(tasks))
+                    )
+                    images, uris = map(list, zip(*results))
+                    images = list(chain.from_iterable(images))
+                uris = list(chain.from_iterable(uris))
+            except Exception:
+                self.logger.error(f"Generated an exception: {traceback.format_exc()}")
 
-        return [images[i] for i in sorted_indices], [uris[i] for i in sorted_indices]
+        if just_uri:
+            rearranged_uris = [None] * len(sorted_indices)
+            for original_index, position in enumerate(sorted_indices):
+                rearranged_uris[position] = uris[original_index]
+            return rearranged_uris
 
-    def read_dataset(self, args):
-        dataset_index, image_indices, export, resize, log, api_key = args
+        rearranged_uris = [None] * len(sorted_indices)
+        rearranged_imgs = [None] * len(sorted_indices)
+        for original_index, position in enumerate(sorted_indices):
+            rearranged_uris[position] = uris[original_index]
+            rearranged_imgs[position] = images[original_index]
+        return rearranged_imgs, rearranged_uris
+
+    def read_dataset(self, args, just_uri=False):
+        dataset_index, image_indices, export, resize, log, api_key, tiled_client = args
         return self.datasets[dataset_index].read_data(
-            self.root_uri, image_indices, export, resize, log, api_key
+            self.root_uri,
+            image_indices,
+            export=export,
+            resize=resize,
+            log=log,
+            api_key=api_key,
+            tiled_client=tiled_client,
+            just_uri=just_uri,
         )
+
+    def get_index(self, uri):
+        cum_points = 0
+        for dataset in self.datasets:
+            if dataset.uri.replace("/", "") in uri:
+                return cum_points + dataset.get_uri_index(uri.split(self.root_uri)[-1])
+            cum_points = dataset.cumulative_data_count
+        return None
 
     def browse_data(
         self,
@@ -202,40 +249,88 @@ class DataProject:
         Returns:
             Hashed URI
         """
-        return hashlib.new(hash_function, uri.encode(("utf-8"))).hexdigest()
+        hashed_uri = hashlib.new(hash_function, uri.encode(("utf-8"))).hexdigest()
+        return hashed_uri
 
-    def check_if_data_downloaded(self, indexes):
+    def _check_file_and_remove_index(self, uri, subset, tiled_uris, root_dir):
+        hashed_uri = self.hash_tiled_uri(uri)
+        file_path = os.path.join(f"{root_dir}/tiled_local_copy", hashed_uri + ".tif")
+        if os.path.isfile(file_path):
+            self._list_indices.remove(tiled_uris.index(uri))
+
+    def _check_if_data_downloaded(self, list_indices, root_dir, tiled_uris):
+        self._list_indices = list_indices
         prev_data_count = 0
         for dataset in self.datasets:
             cum_data_count = dataset.cumulative_data_count
 
             # Find the start and end of the subset
-            start_index = bisect.bisect_left(indexes, prev_data_count)
-            end_index = bisect.bisect_right(indexes, cum_data_count)
+            start_index = bisect.bisect_left(self._list_indices, prev_data_count)
+            end_index = min(
+                bisect.bisect_right(self._list_indices, cum_data_count),
+                cum_data_count - prev_data_count,
+            )
 
-            # Get the subset of indexes within the range
-            subset = indexes[start_index:end_index]
-            tiled_uris = dataset.get_tiled_uris(self.root_uri, subset)
-            for uri in tiled_uris:
-                hashed_uri = self.hash_tiled_uri(uri)
-                file_path = os.path.join("data/tiled_local_copy", hashed_uri + ".tif")
-                if os.path.isfile(file_path):
-                    indexes.remove(subset[tiled_uris.index(uri)])
-        return indexes
+            # Get the subset of indices within the range
+            subset = self._list_indices[start_index:end_index]
+            if len(subset) != 0:
+                tiled_uris = tiled_uris[start_index:end_index]
+                with ThreadPoolExecutor() as executor:
+                    check_func = partial(
+                        self._check_file_and_remove_index,
+                        subset=subset,
+                        tiled_uris=tiled_uris,
+                        root_dir=root_dir,
+                    )
+                    executor.map(check_func, tiled_uris)
+            prev_data_count = cum_data_count
 
-    def tiled_to_local_project(self, indexes=None):
+        return self._list_indices
+
+    def _save_data_content(self, data_content, data_uri, root_dir):
+        filename = self.hash_tiled_uri(data_uri)
+        tifffile.imwrite(
+            f"{root_dir}/tiled_local_copy/{filename}.tif",
+            data_content,
+            dtype=data_content.dtype,
+        )
+        pass
+
+    def tiled_to_local_project(self, root_dir, indices=None, correct_path=False):
         """
         Convert a tiled data project to a local project while saving each dataset to filesystem
         Args:
             pattern:        Pattern to replace in project_id to avoid errors in filesystem
-            indexes:        List of indices to download
+            indices:        List of indices to download
+            correct_path:   Correct the path of the dataset
         """
-        filtered_indexes = self.check_if_data_downloaded(indexes)
-        if len(filtered_indexes) > 0:
+        os.makedirs(f"{root_dir}/tiled_local_copy", exist_ok=True)
+        if indices is None:
+            indices = list(range(self.datasets[-1].cumulative_data_count))
+        tiled_uris = self.read_datasets(indices, just_uri=True)
+
+        filtered_indices = self._check_if_data_downloaded(
+            indices[:], root_dir, tiled_uris
+        )
+
+        if len(filtered_indices) > 0:
             data_contents, data_uris = self.read_datasets(
-                filtered_indexes, export="pillow", resize=False, log=False
+                filtered_indices, export="raw", resize=False, log=False
             )
-            for data_content, data_uri in zip(data_contents, data_uris):
-                filename = self.hash_tiled_uri(data_uri)
-                data_content.save(f"data/tiled_local_copy/{filename}.tif")
-        pass
+            with ThreadPoolExecutor() as executor:
+                list(
+                    executor.map(
+                        partial(self._save_data_content, root_dir=root_dir),
+                        data_contents,
+                        data_uris,
+                    )
+                )
+        # Return list of URIs
+        if correct_path:
+            root_dir = "/app/work/data"
+
+        uri_list = [
+            f"{root_dir}/tiled_local_copy/{self.hash_tiled_uri(tiled_uri)}.tif"
+            for tiled_uri in tiled_uris
+        ]
+        return uri_list

@@ -100,9 +100,9 @@ class FileDataset(Dataset):
         if export == "pillow":
             return img
         if resize:
-            img.thumbnail((200, 200), Image.LANCZOS)
+            img.thumbnail((200, 200), Image.BILINEAR)
         rawBytes = io.BytesIO()
-        img.save(rawBytes, "JPEG")
+        img.save(rawBytes, "JPEG", quality=85)
         rawBytes.seek(0)  # return to the start of the file
         img = base64.b64encode(rawBytes.read())
         return "data:image/jpeg;base64," + img.decode("utf-8")
@@ -114,7 +114,7 @@ class FileDataset(Dataset):
         export="base64",
         resize=True,
         log=False,
-        max_workers=8,
+        just_uri=False,
         **kwargs,
     ):
         """
@@ -125,7 +125,7 @@ class FileDataset(Dataset):
             export:            Export format, defaults to base64
             resize:            Resize images, defaults to True
             log:               Apply log to the images, defaults to False
-            max_workers:       Maximum number of workers, defaults to 8
+            just_uri:          Return only the uri, defaults to False
         Returns:
             Base64/PIL image
             Dataset URI
@@ -133,11 +133,17 @@ class FileDataset(Dataset):
         results = []
         # Filter filenames to process based on indices, ensuring they are within bounds
         filenames_to_process = [
-            self.filenames[i] for i in indices if i < len(self.filenames)
+            self.uri + "/" + self.filenames[i]
+            for i in indices
+            if i < len(self.filenames)
         ]
 
+        if just_uri:
+            return [f"{root_uri}/{filename}" for filename in filenames_to_process]
+
+        thread_indexes = []
         # Use ThreadPoolExecutor to read files in parallel
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ThreadPoolExecutor() as executor:
             future_to_index = {
                 executor.submit(
                     self._read_data_point,
@@ -146,15 +152,33 @@ class FileDataset(Dataset):
                     export,
                     resize,
                     log,
-                ): filename
-                for filename in filenames_to_process
+                ): index
+                for index, filename in enumerate(filenames_to_process)
             }
 
             for future in concurrent.futures.as_completed(future_to_index):
+                thread_index = future_to_index[future]
                 result = future.result()
                 results.append(result)
+                thread_indexes.append(thread_index)
 
-        return results, [f"{root_uri}/{filename}" for filename in filenames_to_process]
+        ordered_results = [
+            results[thread_indexes.index(i)] for i in range(len(indices))
+        ]
+        return ordered_results, [
+            f"{root_uri}/{filename}" for filename in filenames_to_process
+        ]
+
+    def get_uri_index(self, uri):
+        """
+        Get index of the URI
+        Args:
+            uri:          URI of the image
+        Returns:
+            Index of the URI
+        """
+        filename = uri.split(self.uri, 1)[-1]
+        return self.filenames.index(filename[1:])
 
     @staticmethod
     def filepaths_from_directory(
@@ -189,7 +213,7 @@ class FileDataset(Dataset):
                         lambda list1, list2: list1 + list2,
                         (
                             [
-                                os.path.relpath(path, start=directory)
+                                os.path.relpath(path, start=dataset_path)
                                 for path in glob.glob(
                                     str(dataset_path) + "/" + t, recursive=False
                                 )
@@ -204,7 +228,7 @@ class FileDataset(Dataset):
                         lambda list1, list2: list1 + list2,
                         (
                             [
-                                os.path.relpath(path, start=directory)
+                                os.path.relpath(path, start=dataset_path)
                                 for path in glob.glob(
                                     str(dataset_path) + "/" + t, recursive=False
                                 )
