@@ -1,7 +1,5 @@
-import base64
 import concurrent
 import glob
-import io
 import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import reduce
@@ -69,9 +67,15 @@ class FileDataset(Dataset):
             dataset_dict["filenames"],
         )
 
-    @staticmethod
+    @classmethod
     def _read_data_point(
-        root_uri, filename, export="base64", resize=True, log=False, threshold=1
+        cls,
+        root_uri,
+        filename,
+        export="base64",
+        resize=True,
+        log=False,
+        percentiles=[0, 100],
     ):
         """
         Read data point
@@ -81,31 +85,16 @@ class FileDataset(Dataset):
             export:            Export format, defaults to base64
             resize:            Resize image to 200x200, defaults to True
             log:               Apply log to the images, defaults to False
-            threshold:         Threshold for log, defaults to 1
+            percentiles:       Percentiles for normalization, defaults to [0, 100]
         Returns:
             Base64/PIL image
             Dataset URI
         """
         file_path = os.path.join(root_uri, filename)
         img = Image.open(file_path)
-        if log:
-            img = np.array(img, dtype=np.float32)
-            # Apply log(1+threshold) to the image
-            img = np.log(img + threshold)
-            # Normalize image to 0-255
-            img = ((img - np.min(img)) / (np.max(img) - np.min(img)) * 255).astype(
-                np.uint8
-            )
-            img = Image.fromarray(img)
-        if export == "pillow":
-            return img
-        if resize:
-            img.thumbnail((200, 200), Image.BILINEAR)
-        rawBytes = io.BytesIO()
-        img.save(rawBytes, "JPEG", quality=85)
-        rawBytes.seek(0)  # return to the start of the file
-        img = base64.b64encode(rawBytes.read())
-        return "data:image/jpeg;base64," + img.decode("utf-8")
+        img = np.array(img, dtype=np.float32)
+        img = cls._process_image(img, log, resize, export, percentiles)
+        return img
 
     def read_data(
         self,
@@ -115,6 +104,7 @@ class FileDataset(Dataset):
         resize=True,
         log=False,
         just_uri=False,
+        percentiles=[0, 100],
         **kwargs,
     ):
         """
@@ -126,6 +116,7 @@ class FileDataset(Dataset):
             resize:            Resize images, defaults to True
             log:               Apply log to the images, defaults to False
             just_uri:          Return only the uri, defaults to False
+            percentiles:       Percentiles for normalization, defaults to [0, 100]
         Returns:
             Base64/PIL image
             Dataset URI
@@ -152,6 +143,7 @@ class FileDataset(Dataset):
                     export,
                     resize,
                     log,
+                    percentiles=percentiles,
                 ): index
                 for index, filename in enumerate(filenames_to_process)
             }

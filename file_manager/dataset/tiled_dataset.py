@@ -1,11 +1,8 @@
-import base64
 import concurrent.futures
-import io
 import os
 from functools import partial
 
 import numpy as np
-from PIL import Image
 from tiled.client import from_uri
 from tiled.client.array import ArrayClient
 
@@ -74,57 +71,6 @@ class TiledDataset(Dataset):
             client = from_uri(tiled_uri, api_key=api_key)
             return client
 
-    @classmethod
-    def _log_image(cls, image, threshold=0.000000000001):
-        """
-        Process image
-        Args:
-            image:      PIL image
-        Returns:
-            PIL image
-        """
-        # Mask negative and NaN values
-        nan_img = np.isnan(image)
-        img_neg = image < 0.0
-        mask_neg = np.array(img_neg)
-        mask_nan = np.array(nan_img)
-        mask = mask_nan + mask_neg
-        x = np.ma.array(image, mask=mask)
-
-        image = np.log(x + threshold)
-        x = np.ma.array(image, mask=mask)
-
-        x = cls._normalize_percentiles(x)
-        return x
-
-    @staticmethod
-    def _normalize_percentiles(x, low_perc=0.01, high_perc=99):
-        low = np.percentile(x.ravel(), low_perc)
-        high = np.percentile(x.ravel(), high_perc)
-        x = (np.clip((x - low) / (high - low), 0, 1) * 255).astype(np.uint8)
-        return x
-
-    def _process_image(self, image, log, resize, export):
-        if log:
-            image = self._log_image(image)
-        elif image.dtype != np.uint8:
-            image = self._normalize_percentiles(image)
-
-        image = Image.fromarray(image)
-
-        if resize:
-            image = image.resize((200, 200))
-
-        if export == "pillow":
-            return image
-        else:
-            buffered = io.BytesIO()
-            image.save(buffered, format="PNG")
-            contents = buffered.getvalue()
-
-        contents_base64 = base64.b64encode(contents).decode("utf-8")
-        return f"data:image/png;base64,{contents_base64}"
-
     def read_data(
         self,
         root_uri,
@@ -136,6 +82,7 @@ class TiledDataset(Dataset):
         downsample=False,
         just_uri=False,
         tiled_client=None,
+        percentiles=[0, 100],
     ):
         """
         Read data set
@@ -148,6 +95,8 @@ class TiledDataset(Dataset):
             api_key:           Tiled API key
             downsample:        Downsample the image, defaults to False
             just_uri:          Return only the uri, defaults to False
+            tiled_client:      Tiled client
+            percentiles:       Percentiles to normalize the image, defaults to [0, 100]
         Returns:
             Base64/PIL image
             Dataset URI
@@ -190,14 +139,28 @@ class TiledDataset(Dataset):
         with concurrent.futures.ThreadPoolExecutor() as executor:
             data = list(
                 executor.map(
-                    self._process_image,
+                    self._read_data_point,
                     block_data,
                     [log] * len(indexes),
                     [resize] * len(indexes),
                     [export] * len(indexes),
+                    [percentiles] * len(indexes),
                 )
             )
         return data, tiled_uris
+
+    def _read_data_point(self, image, log, resize, export, percentiles):
+        """
+        Read data point
+        Args:
+            image:          Image data
+            log:            Apply log(masked(x)+threshold) to the image
+            resize:         Resize image to 200x200
+            export:         Export format
+            percentiles:    Percentiles to normalize the image
+            threshold:      Threshold for log
+        """
+        return self._process_image(image, log, resize, export, percentiles)
 
     def _get_tiled_uris(self, tiled_client, indexes):
         """
