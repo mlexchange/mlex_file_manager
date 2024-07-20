@@ -8,7 +8,7 @@ with open("requirements.txt") as f:
 
 setup(
     name="mlex_file_manager",  # This is the name of the package
-    version="0.0.2",  # The release version
+    version="0.2.0",  # The release version
     author="Tanny Chavez E., Zhuowen (Kevin) Zhao",  # Full name of the author
     author_email="tanchavez@lbl.gov, zzhao2@lbl.gov",
     description="",
