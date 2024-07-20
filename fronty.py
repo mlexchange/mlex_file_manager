@@ -11,6 +11,7 @@ import diskcache
 import numpy as np
 from dash import ALL, MATCH, ClientsideFunction, Input, Output, State, dcc, html
 from dash.long_callback import DiskcacheLongCallbackManager
+from dotenv import load_dotenv
 from flask_caching import Cache
 from PIL import Image
 
@@ -18,8 +19,13 @@ from file_manager.data_project import DataProject
 from file_manager.main import FileManager
 from plot_utils import draw_rows, get_mask_options
 
+load_dotenv()
+
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
-TILED_KEY = os.environ.get("TILED_KEY", "")
+TILED_KEY = os.environ.get("TILED_KEY", None)
+if TILED_KEY == "":
+    TILED_KEY = None
+HOST = os.environ.get("HOST", "127.0.0.1")
 NUM_ROWS = 3
 NUM_COLS = 6
 TIMEOUT = 60
@@ -391,4 +397,4 @@ def refresh_image(data_project_dict, img_ind):
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True, host="0.0.0.0")
+    app.run_server(debug=True, host=HOST)

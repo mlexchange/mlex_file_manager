@@ -18,6 +18,7 @@ from file_manager.data_project import DataProject
 DATA_DIR = os.getenv("DATA_DIR", ".")
 
 
+# TODO: Deprecate upload_folder_root
 class FileManager:
     def __init__(
         self,
@@ -37,6 +38,7 @@ class FileManager:
             max_file_size:          [int] Maximum file size for uploaded data, defaults to 60000
             open_explorer:          [bool] Open/close the file explorer at start up
             api_key:                [str] Tiled API key
+            logger:                 [logging.Logger] Logger object
         """
         self.data_folder_root = data_folder_root
         self.upload_folder_root = upload_folder_root

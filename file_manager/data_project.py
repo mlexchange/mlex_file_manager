@@ -83,7 +83,13 @@ class DataProject:
         )
 
     def read_datasets(
-        self, indices, export="base64", resize=True, log=False, just_uri=False
+        self,
+        indices,
+        export="base64",
+        resize=True,
+        log=False,
+        just_uri=False,
+        percentiles=[0, 100],
     ):
         """
         Get datasets at specific indices
@@ -93,6 +99,7 @@ class DataProject:
             resize:         Resize image to 200x200, defaults to True
             log:            Take logarithm of the data, defaults to False
             just_uri:       Return only the URIs, defaults to False
+            percentiles:    Percentiles to calculate
         Returns:
             List of datasets
         """
@@ -125,6 +132,7 @@ class DataProject:
                 log,
                 self.api_key,
                 tiled_client,
+                percentiles,
             )
             for dataset_index, image_indices in dataset_indices.items()
         ]
@@ -159,7 +167,16 @@ class DataProject:
         return rearranged_imgs, rearranged_uris
 
     def read_dataset(self, args, just_uri=False):
-        dataset_index, image_indices, export, resize, log, api_key, tiled_client = args
+        (
+            dataset_index,
+            image_indices,
+            export,
+            resize,
+            log,
+            api_key,
+            tiled_client,
+            percentiles,
+        ) = args
         return self.datasets[dataset_index].read_data(
             self.root_uri,
             image_indices,
@@ -169,12 +186,13 @@ class DataProject:
             api_key=api_key,
             tiled_client=tiled_client,
             just_uri=just_uri,
+            percentiles=percentiles,
         )
 
     def get_index(self, uri):
         cum_points = 0
         for dataset in self.datasets:
-            if dataset.uri.replace("/", "") in uri:
+            if dataset.uri.replace("//", "/") in uri:
                 return cum_points + dataset.get_uri_index(uri.split(self.root_uri)[-1])
             cum_points = dataset.cumulative_data_count
         return None
