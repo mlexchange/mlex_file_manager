@@ -7,7 +7,8 @@ flask==3.0.0
 Flask-Caching
 numpy>=1.19.5
 pandas
-Pillow #==8.3.2
+Pillow
+python-dotenv
 requests==2.26.0
 tifffile
 tiled[client]>=0.1.0a107

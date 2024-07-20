@@ -4,25 +4,28 @@ Simple data management system with [Dash UI](https://dash.plotly.com) and [Tiled
 
 ## Running simple example with [Docker](https://docs.docker.com/engine/install/)
 
-1. Clone this repository:
-    ```
-    https://github.com/mlexchange/mlex_file_manager
-    ```
+1. Create a new Python environment and install dependencies:
+```
+conda create -n new_env python==3.11
+conda activate file_manager_test
+pip install .
+```
 
-2. Within the ``mlex_file_manager`` directory, run the following command:
-    ```
-    docker-compose up --build
-    ```
-3. Access the sample application at [localhost:8050](localhost:8050)
+2. Create a `.env` file using `.env.example` as reference. Update this file accordingly.
+
+3. Start example app:
+```
+python fronty.py
+```
 
 ## Ingest data with MLExchange File Manager
 The MLExchange File Manager supports data access through:
 
 1. Loading data from file system: You can access image data located at ```DATA_DIR```. Currently, the supported formats are: PNG, JPG/JPEG, and TIF/TIFF.
 
-2. Loading data from [Tiled](https://blueskyproject.io/tiled/): Alternatively, you can access data through Tiled by providing a ```TILED_URI```, optionally a ```TILED_SUB_URI``` in the frontend of your application, and the ```TILED_KEY``` associated with this server as an environment variable. Please note that you can set up default values for ```DEFAULT_TILED_URI``` and ```DEFAULT_TILED_SUB_URI``` in the environment file. An example environment file is defined in ```.env.example```
+2. Loading data from [Tiled](https://blueskyproject.io/tiled/): Alternatively, you can access data through Tiled by providing a ```DEFAULT_TILED_URI```, (optionally) a ```DEFAULT_TILED_SUB_URI```, and the ```TILED_KEY``` associated with this server. Please note that you can set up default values for these variables in the environment file. An example environment file is defined in ```.env.example```
 
-3. Browse directories or Tiled nodes and **IMPORT** the selected files.
+3. Browse directories or Tiled nodes and **IMPORT** the data sets of interest.
 
 ## How to set up MLExchange File Manager in your application
 
@@ -58,7 +61,6 @@ The MLExchange File Manager supports data access through:
 
             root_uri:           Root (file or tiled) URI
             data_type:          Data type, file or tiled
-            api_key:            [Optional] API key, if tiled
             datasets:           List of datasets
             project_id:         Project ID
 
@@ -71,7 +73,7 @@ The MLExchange File Manager supports data access through:
     ```
     from file_manager.data_project import DataProject
 
-    data_project = DataProject.from_dict(data_project_dict)
+    data_project = DataProject.from_dict(data_project_dict, api_key=YOUR_API_KEY)
     ```
 
     In the previous example, ```data_project_dict``` correspond to the dictionary stored in ```{'base_id': 'file-manager', 'name': 'data-project-dict'}```. Once the data is loaded in the corresponding object, we can access the 6th and 10th (index=[5, 9]) elements of this project by using:
@@ -85,7 +87,7 @@ The MLExchange File Manager supports data access through:
     ```
 
     The parameters of *read_data* are described as follows:
-        - export: 'base64' or 'pillow', default 'base64'
+        - export: 'base64', 'pillow', or 'raw' (if tiled), default 'base64'
         - resize: True/False, defaults to True. When True, the image is resized to 200x200 pixels approximately while keeping the aspect ratio of the original image
 
 ## Copyright
