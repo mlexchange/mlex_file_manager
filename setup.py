@@ -8,7 +8,7 @@ with open("requirements.txt") as f:
 
 setup(
     name="mlex_file_manager",
-    version="0.0.3",
+    version="0.3.0",
     author="Tanny Chavez E.",
     author_email="tanchavez@lbl.gov",
     description="",
