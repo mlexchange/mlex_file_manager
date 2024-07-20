@@ -1,14 +1,17 @@
 version: '3'
 
 services:
-    front-end:
-        container_name: "file-manager"
+    fm-example:
+        container_name: "fm-example"
         build: .
         environment:
             DEFAULT_TILED_URI: "${DEFAULT_TILED_URI}"
             DEFAULT_TILED_SUB_URI: "${DEFAULT_TILED_SUB_URI}"
+            STATIC_TILED_URI: "${STATIC_TILED_URI}"
+            STATIC_TILED_API_KEY: "${STATIC_TILED_API_KEY}"
             TILED_KEY: "${TILED_KEY}"
             DATA_DIR: "/app/work/data"
+            HOST: "0.0.0.0"
         volumes:
             - "${DATA_DIR}:/app/work/data"
         ports:
