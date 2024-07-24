@@ -7,7 +7,7 @@ Simple data management system with [Dash UI](https://dash.plotly.com) and [Tiled
 1. Create a new Python environment and install dependencies:
 ```
 conda create -n new_env python==3.11
-conda activate file_manager_test
+conda activate new_env
 pip install .
 ```
 
