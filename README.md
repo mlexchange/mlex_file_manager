@@ -2,7 +2,7 @@
 
 Simple data management system with [Dash UI](https://dash.plotly.com) and [Tiled](https://blueskyproject.io/tiled/).
 
-## Running simple example with [Docker](https://docs.docker.com/engine/install/)
+## Running simple example
 
 1. Create a new Python environment and install dependencies:
 ```
