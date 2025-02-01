@@ -1,6 +1,6 @@
 dash==2.9.3
 dash[diskcache]
-dash_bootstrap_components==1.0.2
+dash_bootstrap_components>=1.0.2
 dash_daq==0.5.0
 dash-uploader==0.6.0
 flask==3.0.0
