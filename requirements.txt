@@ -9,7 +9,7 @@ numpy>=1.19.5
 pandas
 Pillow
 python-dotenv
-requests==2.26.0
+requests
 tifffile
 tiled[client]>=0.1.0a107
 gunicorn==20.1.0
